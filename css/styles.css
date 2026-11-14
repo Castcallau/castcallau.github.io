@@ -322,6 +322,7 @@ footer .about h2 { font-size: 13px; color: var(--ink); margin: 0 0 4px; }
 .chart .gust-line { fill: none; stroke: var(--series-2); stroke-width: 1.5; stroke-linejoin: round; opacity: .85; }
 .chart .choppy { stroke: var(--bad); stroke-width: 1; stroke-dasharray: 5 4; opacity: .6; }
 .chart .wdir { fill: var(--ink-2); font-size: 12px; font-weight: 700; }
+.nowrap { white-space: nowrap; }
 .key.line-key { height: 3px; border: 0; border-radius: 2px; width: 16px; }
 .key.wind-key { background: var(--series-1); }
 .key.gust-key { background: var(--series-2); margin-left: 6px; }

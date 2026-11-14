@@ -399,7 +399,7 @@
       <section>
         <h3>Wind</h3>
         <div class="chart" id="wind-chart">${windChart(l, a)}</div>
-        <div class="caption"><span class="key line-key wind-key"></span> Wind <span class="key line-key gust-key"></span> Gusts · arrows show which way it's blowing · dashed line = getting choppy for small boats</div>
+        <div class="caption"><span class="nowrap"><span class="key line-key wind-key"></span> Wind</span> <span class="nowrap"><span class="key line-key gust-key"></span> Gusts</span> <span>· arrows show which way it's blowing · dashed line = getting choppy for small boats</span></div>
       </section>
 
       ${timesSection(l, a, h)}
@@ -573,7 +573,7 @@
       if (k === 0 || h23(h.t) === 0) {
         if (k > 0) out += `<line class="dayline" x1="${x(k)}" x2="${x(k)}" y1="${top}" y2="${bottom}"/>`;
         out += `<text class="axis" x="${x(k) + 3}" y="${bottom + 14}">${day(h.t)}</text>`;
-      } else if (h23(h.t) === 12) out += `<text class="axis faint" x="${x(k)}" y="${bottom + 14}" text-anchor="middle">12pm</text>`;
+      } else if (h23(h.t) === 12 && k >= 5) out += `<text class="axis faint" x="${x(k)}" y="${bottom + 14}" text-anchor="middle">12pm</text>`;   // skip if it would sit on the day name
     });
     return out;
   }
