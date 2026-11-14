@@ -396,6 +396,12 @@
         </div>
       </section>
 
+      <section>
+        <h3>Wind</h3>
+        <div class="chart" id="wind-chart">${windChart(l, a)}</div>
+        <div class="caption"><span class="key line-key wind-key"></span> Wind <span class="key line-key gust-key"></span> Gusts · arrows show which way it's blowing · dashed line = getting choppy for small boats</div>
+      </section>
+
       ${timesSection(l, a, h)}
 
       ${h.fresh ? '' : `<section>
@@ -453,6 +459,11 @@
       curTZ = l.tz;
       const x = a.hours[k];
       return `<b>${day(x.t)} ${hr(x.t)}</b><br>Score ${x.score} · ${LABEL[bucket(x.score)]}<br>${arrow(x.windDir)} ${Math.round(x.wind)} km/h · 🌊 ${n1(x.wave)} m<br>${x.tide ? x.tide.state + ' tide' : ''}`;
+    }, k => { state.offset = k; $('#time').value = k; render(); });
+    bindChart('#wind-chart', k => {
+      curTZ = l.tz;
+      const x = a.hours[k];
+      return `<b>${day(x.t)} ${hr(x.t)}</b><br>${arrow(x.windDir)} ${S.compass(x.windDir)} ${spd(x.wind)} ${unit()}<br>Gusts ${spd(x.gust)} ${unit()}`;
     }, k => { state.offset = k; $('#time').value = k; render(); });
     bindChart('#tide-chart', k => {
       curTZ = l.tz;
@@ -603,6 +614,39 @@
     s += `<line class="cross" x1="0" x2="0" y1="${PT}" y2="${base}" visibility="hidden"/>`;
     s += hitRects(n, x, iw, PT, ch, k0);
     return `<svg viewBox="0 0 ${CW} ${HH}" role="img" aria-label="Fishing score for each hour over 3 days">${s}</svg>`;
+  }
+
+  // Wind speed + gusts over the same 3 days as the score chart, in km/h or knots, with direction arrows.
+  function windChart(l, a) {
+    const k0 = chartStart(a), hours = a.hours.slice(k0, k0 + CHART_HOURS), n = hours.length;
+    const HH = 180, PT = 26, PB = 24, ch = HH - PT - PB;
+    const kn = state.units === 'kn', conv = v => (v == null ? null : kn ? v / 1.852 : v);
+    const step = kn ? 5 : 10, choppy = conv(25);
+    const peak = Math.max(choppy + step / 2, ...hours.map(h => conv(h.gust ?? h.wind) || 0));
+    const top = Math.ceil(peak / step) * step;
+    const { iw, x } = xScale(n), cx = k => x(k) + iw / 2, y = v => PT + ch * (1 - v / top), base = y(0);
+    let s = '';
+    hours.forEach((h, k) => { if (h.light.cat === 'night') s += `<rect class="night" x="${x(k)}" y="${PT}" width="${iw + 0.5}" height="${ch}"/>`; });
+    for (let v = step; v <= top; v += step) {
+      if (top / step > 6 && (v / step) % 2) continue;   // keep gridlines sparse
+      s += `<line class="grid" x1="${PL}" x2="${CW - PR}" y1="${y(v)}" y2="${y(v)}"/><text class="axis" x="${PL - 6}" y="${y(v) + 3}" text-anchor="end">${v}</text>`;
+    }
+    s += `<line class="choppy" x1="${PL}" x2="${CW - PR}" y1="${y(choppy)}" y2="${y(choppy)}"/>`;
+    const path = key => hours.map((h, k) => `${k ? 'L' : 'M'}${cx(k).toFixed(1)},${y(conv(h[key] ?? h.wind)).toFixed(1)}`).join('');
+    s += `<path class="gust-line" d="${path('gust')}"/><path class="wind-line" d="${path('wind')}"/>`;
+    // direction arrows every 3 hours (arrow points the way the wind is blowing)
+    hours.forEach((h, k) => {
+      if (h23(h.t) % 3) return;
+      s += `<text class="wdir" x="${cx(k)}" y="${PT - 9}" text-anchor="middle" transform="rotate(${(h.windDir + 180) % 360} ${cx(k)} ${PT - 13})">↑</text>`;
+    });
+    const sk = state.offset - k0;
+    if (sk >= 0 && sk < n) { const sx = cx(sk); s += `<line class="now" x1="${sx}" x2="${sx}" y1="${PT - 2}" y2="${base}"/><circle class="dot" cx="${sx}" cy="${y(conv(hours[sk].wind))}" r="4"/>`; }
+    s += `<line class="baseline" x1="${PL}" x2="${CW - PR}" y1="${base}" y2="${base}"/>`;
+    s += `<text class="axis" x="${PL - 6}" y="${PT - 14}" text-anchor="end">${unit()}</text>`;
+    s += dayMarks(hours, x, PT, base);
+    s += `<line class="cross" x1="0" x2="0" y1="${PT}" y2="${base}" visibility="hidden"/>`;
+    s += hitRects(n, x, iw, PT, ch, k0);
+    return `<svg viewBox="0 0 ${CW} ${HH}" role="img" aria-label="Wind speed and gusts over 3 days">${s}</svg>`;
   }
 
   function tideChart(l, a) {

@@ -315,6 +315,17 @@ footer .about h2 { font-size: 13px; color: var(--ink); margin: 0 0 4px; }
 .tab .ti { margin-right: 4px; }
 .top-actions { display: flex; gap: 6px; }
 
+/* Wind graph – wind = series 1 (blue), gusts = series 2 (orange) */
+:root { --series-2: #eb6834; }
+@media (prefers-color-scheme: dark) { :root { --series-2: #d95926; } }
+.chart .wind-line { fill: none; stroke: var(--series-1); stroke-width: 2; stroke-linejoin: round; }
+.chart .gust-line { fill: none; stroke: var(--series-2); stroke-width: 1.5; stroke-linejoin: round; opacity: .85; }
+.chart .choppy { stroke: var(--bad); stroke-width: 1; stroke-dasharray: 5 4; opacity: .6; }
+.chart .wdir { fill: var(--ink-2); font-size: 12px; font-weight: 700; }
+.key.line-key { height: 3px; border: 0; border-radius: 2px; width: 16px; }
+.key.wind-key { background: var(--series-1); }
+.key.gust-key { background: var(--series-2); margin-left: 6px; }
+
 /* Tides & bite times */
 .times-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; }
 .times-box { background: var(--surface-2); border-radius: 10px; padding: 10px 12px; }
