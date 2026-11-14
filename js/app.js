@@ -613,7 +613,11 @@
     initMap();
     load(false);
     if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
-      navigator.serviceWorker.register('sw.js').catch(e => console.warn('Service worker not registered', e));
+      // updateViaCache 'none' = always check for a new version of the app; when one takes over, reload once.
+      const hadController = !!navigator.serviceWorker.controller;
+      let reloaded = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController && !reloaded) { reloaded = true; location.reload(); } });
+      navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(e => console.warn('Service worker not registered', e));
     }
     setInterval(() => { if (state.data) { compute(); render(); } }, 10 * 60 * 1000);
   }
