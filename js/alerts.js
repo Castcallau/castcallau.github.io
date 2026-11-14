@@ -178,7 +178,7 @@ window.FISH = window.FISH || {};
             <span class="cal"><a href="${gcal(w)}" target="_blank" rel="noopener">Google Calendar</a> · <button class="link" data-ics="${r.id}|${k}">Phone calendar (.ics)</button></span>
           </li>`).join('')}</ul>` : closedNow(r)
             ? `<p class="muted small">⛔ ${F.ui.esc(closedNow(r).note)} This alert will start matching again when the season reopens.</p>`
-            : '<p class="muted small">Nothing hits this in the next 3 days yet. CastCall will check again each time you open it.</p>'}
+            : '<p class="muted small">Nothing hits this in the next 2 weeks yet. CastCall will check again each time you open it.</p>'}
       </article>`;
     }).join('') : '<p class="empty">No alerts yet. Make one above – e.g. "Kingfish, any spot in Sydney, score 70+, dawn & dusk".</p>';
 

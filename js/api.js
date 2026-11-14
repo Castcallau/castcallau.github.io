@@ -1,10 +1,12 @@
 // Live data from Open-Meteo (free, no API key).
 // Weather: https://open-meteo.com/en/docs   Marine (swell, sea temp, tide): https://open-meteo.com/en/docs/marine-weather-api
+// Weather comes 15 days ahead; marine data (swell, sea temp, tide model) about 8–9 days – scoring.js fills the gap.
 window.FISH = window.FISH || {};
 (function () {
-  const CACHE_KEY = 'fish-cache-v4';
-  try { ['fish-cache-v2', 'fish-cache-v3'].forEach(k => localStorage.removeItem(k)); } catch (e) { /* ignore */ }
+  const CACHE_KEY = 'fish-cache-v5';
+  try { ['fish-cache-v2', 'fish-cache-v3', 'fish-cache-v4', 'fish-pins-cache'].forEach(k => localStorage.removeItem(k)); } catch (e) { /* ignore */ }
   const TTL = 30 * 60 * 1000; // 30 minutes
+  const FORECAST_DAYS = 15;   // today + 14 days
 
   const WEATHER_VARS = 'temperature_2m,precipitation_probability,precipitation,weather_code,cloud_cover,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m';
   const MARINE_VARS = 'wave_height,wave_direction,wave_period,swell_wave_height,sea_surface_temperature,sea_level_height_msl';
@@ -13,7 +15,7 @@ window.FISH = window.FISH || {};
     const lat = pts.map(p => p[0].toFixed(3)).join(',');
     const lon = pts.map(p => p[1].toFixed(3)).join(',');
     // timezone=auto: each spot gets its own local days (sunrise/sunset) – Perth, Adelaide, Darwin etc.
-    return `${base}?latitude=${lat}&longitude=${lon}&timezone=auto&timeformat=unixtime&past_days=1&forecast_days=4&${extra}`;
+    return `${base}?latitude=${lat}&longitude=${lon}&timezone=auto&timeformat=unixtime&past_days=1&forecast_days=${FORECAST_DAYS}&${extra}`;
   }
 
   async function fetchJSON(u, ms) {
@@ -31,9 +33,9 @@ window.FISH = window.FISH || {};
   // browsers block them) and the page is served by serve.ps1, retry through its local proxy.
   async function getJSON(urls) {
     let last;
-    for (const u of urls) { try { return await fetchJSON(u, 9000); } catch (e) { last = e; } }
+    for (const u of urls) { try { return await fetchJSON(u, 25000); } catch (e) { last = e; } }
     if (location.hostname === 'localhost') {
-      for (const u of urls.slice().reverse()) { try { return await fetchJSON('/proxy?url=' + encodeURIComponent(u), 20000); } catch (e) { last = e; } }
+      for (const u of urls.slice().reverse()) { try { return await fetchJSON('/proxy?url=' + encodeURIComponent(u), 45000); } catch (e) { last = e; } }
     }
     throw last;
   }
@@ -62,15 +64,33 @@ window.FISH = window.FISH || {};
     return out;
   }
 
+  // ---- Cache in IndexedDB (two weeks of hourly data for 100+ spots is too big for localStorage) ----
+  const idb = (() => {
+    let dbp = null;
+    const open = () => dbp || (dbp = new Promise((res, rej) => {
+      const r = indexedDB.open('castcall', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('cache');
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    }));
+    const tx = (mode, fn) => open().then(db => new Promise((res, rej) => {
+      const t = db.transaction('cache', mode), req = fn(t.objectStore('cache'));
+      t.oncomplete = () => res(req && req.result); t.onerror = () => rej(t.error);
+    }));
+    return {
+      get: k => tx('readonly', s => s.get(k)).catch(() => null),
+      set: (k, v) => tx('readwrite', s => s.put(v, k)).catch(() => null)
+    };
+  })();
+
   FISH.api = {
+    FORECAST_DAYS,
     // cacheKey lets pinned spots be cached separately from the built-in spots.
     async load(locations, force, cacheKey = CACHE_KEY) {
       if (!locations.length) return { data: {}, at: Date.now(), cached: true, marineOk: true };
+      const ids = locations.map(l => l.id).join();
       if (!force) {
-        try {
-          const c = JSON.parse(localStorage.getItem(cacheKey) || 'null');
-          if (c && Date.now() - c.at < TTL && c.ids === locations.map(l => l.id).join()) return { data: c.data, at: c.at, cached: true };
-        } catch (e) { /* ignore bad cache */ }
+        const c = await idb.get(cacheKey);
+        if (c && Date.now() - c.at < TTL && c.ids === ids) return { data: c.data, at: c.at, cached: true };
       }
       const pts = locations.map(l => [l.lat, l.lon]), wq = `hourly=${WEATHER_VARS}&daily=sunrise,sunset&wind_speed_unit=kmh`;
       const weatherUrls = [
@@ -91,8 +111,7 @@ window.FISH = window.FISH || {};
         data[l.id] = merge(weather[i], marine && mi >= 0 ? marine[mi] : null);
       });
       const at = Date.now();
-      try { localStorage.setItem(cacheKey, JSON.stringify({ at, ids: locations.map(l => l.id).join(), data })); }
-      catch (e) { localStorage.removeItem(cacheKey); /* storage full – just skip the cache */ }
+      idb.set(cacheKey, { at, ids, data });
       return { data, at, cached: false, marineOk: !!marine || !salt.length };
     }
   };

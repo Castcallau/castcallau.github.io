@@ -19,7 +19,7 @@ try {
       if ($target.Scheme -eq 'https' -and $target.Host -match '^(api|marine-api)\.open-meteo\.com$') {
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         $req = [Net.HttpWebRequest]::Create($target)
-        $req.Timeout = 15000
+        $req.Timeout = 40000; $req.ReadWriteTimeout = 40000
         $resp = $req.GetResponse(); $ms = New-Object IO.MemoryStream
         $resp.GetResponseStream().CopyTo($ms); $resp.Close(); $bytes = $ms.ToArray()
         $ctx.Response.ContentType = 'application/json'

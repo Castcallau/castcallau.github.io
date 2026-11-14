@@ -42,7 +42,7 @@
   }
   </script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="css/styles.css?v=202611141829">
+  <link rel="stylesheet" href="css/styles.css?v=202611141844">
 </head>
 <body>
   <header class="top">
@@ -65,10 +65,11 @@
     <div class="time-ctl">
       <label for="time" id="time-label">Now</label>
       <div class="time-row">
-        <input type="range" id="time" min="0" max="71" value="0" step="1" aria-describedby="time-label">
+        <input type="range" id="time" min="0" max="335" value="0" step="1" aria-describedby="time-label">
         <button class="btn small" id="now-btn">Now</button>
         <button class="btn small filters-toggle" id="filters-toggle" aria-expanded="false" aria-controls="filters">⚙ Filters</button>
       </div>
+      <div class="day-chips" id="day-chips" aria-label="Pick a day"></div>
     </div>
     <div class="filters" id="filters">
       <select id="region" aria-label="Region"></select>
@@ -104,7 +105,7 @@
       <footer>
         <section class="about">
           <h2>CastCall – free Australian fishing forecast: best spots, times, tides and bait</h2>
-          <p>CastCall is a free fishing forecast for all of Australia. It scores over 100 saltwater and freshwater fishing spots in every state every hour for the next three days, using tides, wind, swell, water temperature, barometric pressure, rain and river flow, sunrise and sunset, and the moon. Pin any spot on the map for an exact rundown. It ranks the best spots, tells you the best time to go, sends fishing alerts and keeps a catch log.</p>
+          <p>CastCall is a free fishing forecast for all of Australia. It scores over 100 saltwater and freshwater fishing spots in every state every hour for the next two weeks, using tides, wind, swell, water temperature, barometric pressure, rain and river flow, sunrise and sunset, and the moon. Pin any spot on the map for an exact rundown. It ranks the best spots, tells you the best time to go, sends fishing alerts and keeps a catch log.</p>
           <p>Queensland: Gold Coast Seaway, Moreton Bay, Redcliffe, Noosa, K'gari (Fraser Island), Hervey Bay, the Whitsundays, Townsville, Cairns, the Great Barrier Reef and Lake Tinaroo.
             Northern Territory: Darwin Harbour, the Mary River, the Daly River and Dundee Beach.
             Western Australia: the Swan River, Perth beaches, Rottnest Island, Mandurah, Busselton Jetty, Albany, Esperance, Ningaloo and Broome.
@@ -143,7 +144,7 @@
 
   <main id="view-alerts" class="page scroll" hidden>
     <h2>Fishing alerts</h2>
-    <p class="muted">Pick a spot or a fish and a minimum score. CastCall checks the next 3 days every time you open it and tells you when something hits.
+    <p class="muted">Pick a spot or a fish and a minimum score. CastCall checks the next 2 weeks every time you open it and tells you when something hits.
       To get a reminder even when CastCall is closed, add the window to your calendar.</p>
     <form id="alert-form" class="panel form-grid">
       <label>Spot<select id="a-spot"></select></label>
@@ -235,14 +236,14 @@
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="js/data/species.js?v=202611141829"></script>
-  <script src="js/data/locations.js?v=202611141829"></script>
-  <script src="js/data/locations-au.js?v=202611141829"></script>
-  <script src="js/api.js?v=202611141829"></script>
-  <script src="js/scoring.js?v=202611141829"></script>
-  <script src="js/pins.js?v=202611141829"></script>
-  <script src="js/app.js?v=202611141829"></script>
-  <script src="js/alerts.js?v=202611141829"></script>
-  <script src="js/catchlog.js?v=202611141829"></script>
+  <script src="js/data/species.js?v=202611141844"></script>
+  <script src="js/data/locations.js?v=202611141844"></script>
+  <script src="js/data/locations-au.js?v=202611141844"></script>
+  <script src="js/api.js?v=202611141844"></script>
+  <script src="js/scoring.js?v=202611141844"></script>
+  <script src="js/pins.js?v=202611141844"></script>
+  <script src="js/app.js?v=202611141844"></script>
+  <script src="js/alerts.js?v=202611141844"></script>
+  <script src="js/catchlog.js?v=202611141844"></script>
 </body>
 </html>

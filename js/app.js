@@ -137,7 +137,34 @@
     const any = Object.values(state.analyses)[0];
     if (!any) return;
     const h = any.hours[state.offset];
-    $('#time-label').innerHTML = state.offset === 0 ? `<b>Now</b> · ${day(h.t, DEVICE_TZ)} ${hr(h.t, DEVICE_TZ)}` : `<b>${day(h.t, DEVICE_TZ)} ${hr(h.t, DEVICE_TZ)}</b> · in ${state.offset} h <span class="muted small">(your time)</span>`;
+    const dateTxt = fmt(DEVICE_TZ, { day: 'numeric', month: 'short' }).format(new Date(h.t * 1000));
+    const ahead = state.offset < 24 ? `in ${state.offset} h` : `in ${Math.round(state.offset / 24)} day${Math.round(state.offset / 24) === 1 ? '' : 's'}`;
+    $('#time-label').innerHTML = state.offset === 0 ? `<b>Now</b> · ${day(h.t, DEVICE_TZ)} ${hr(h.t, DEVICE_TZ)}`
+      : `<b>${day(h.t, DEVICE_TZ)} ${dateTxt}, ${hr(h.t, DEVICE_TZ)}</b> · ${ahead}${h.far ? ' · <span class="far-note">less certain</span>' : ''} <span class="muted small">(your time)</span>`;
+    renderDayChips(any);
+  }
+
+  // Row of day buttons under the time slider: tap a day to jump to 6am that day (or now for today).
+  function renderDayChips(any) {
+    const box = $('#day-chips');
+    if (!box) return;
+    const days = [], seen = new Set();
+    any.hours.forEach((h, k) => {
+      const key = fmt(DEVICE_TZ, { year: 'numeric', month: 'numeric', day: 'numeric' }).format(new Date(h.t * 1000));
+      if (!seen.has(key)) { seen.add(key); days.push({ k, t: h.t }); }
+    });
+    const curDay = [...days].reverse().find(d => d.k <= state.offset);
+    const sig = days.map(d => d.k).join() + '|' + (curDay && curDay.k);
+    if (box.dataset.sig === sig) return;          // nothing changed – don't rebuild while dragging the slider
+    box.dataset.sig = sig;
+    box.innerHTML = days.map((d, i) => {
+      const six = any.hours.findIndex((h, k) => k >= d.k && h23(h.t, DEVICE_TZ) === 6);
+      const target = i === 0 ? 0 : (six >= 0 && six < (days[i + 1] ? days[i + 1].k : Infinity) ? six : d.k);
+      return `<button class="chip-day${d === curDay ? ' on' : ''}${i >= 7 ? ' far' : ''}" data-k="${target}">
+        <b>${i === 0 ? 'Today' : day(d.t, DEVICE_TZ)}</b><span>${fmt(DEVICE_TZ, { day: 'numeric' }).format(new Date(d.t * 1000))}</span></button>`;
+    }).join('');
+    box.querySelectorAll('[data-k]').forEach(b => b.onclick = () => { state.offset = Number(b.dataset.k); $('#time').value = state.offset; render(); });
+    const on = box.querySelector('.on'); if (on) box.scrollLeft = on.offsetLeft - box.clientWidth / 2 + on.offsetWidth / 2;
   }
 
   function nextWindow(a, t) { return a.windows.find(w => w.end > t); }
@@ -298,10 +325,22 @@
       </div>` : ''}
 
       <section>
-        <h3>Best times – next 3 days</h3>
-        <div class="windows">${a.windows.length ? a.windows.map(w => `<button class="win" data-t="${w.peakT}"><b>${day(w.start)} ${hr(w.start)} – ${hr(w.end)}</b><span>Peak ${w.peak} at ${hr(w.peakT)}</span></button>`).join('') : '<span class="muted">No standout windows – conditions are fairly even.</span>'}</div>
+        <h3>14-day outlook</h3>
+        <div class="outlook" role="list">${a.days.map(dd => {
+          const sel = state.offset >= dd.k0 && (a.days[a.days.indexOf(dd) + 1] ? state.offset < a.days[a.days.indexOf(dd) + 1].k0 : true);
+          return `<button class="oday s${bucket(dd.best)}-t${dd.far ? ' far' : ''}${sel ? ' sel' : ''}" role="listitem" data-t="${dd.peakT}"
+              title="${day(dd.peakT)} – best ${dd.best} around ${hr(dd.peakT)}${dd.far ? ' (less certain this far out)' : ''}">
+            <span class="od-day">${a.days.indexOf(dd) === 0 ? 'Today' : day(dd.t)}</span>
+            <span class="od-date">${fmt(l.tz, { day: 'numeric', month: 'short' }).format(new Date(dd.t * 1000))}</span>
+            <span class="od-score s${bucket(dd.best)}">${dd.best}</span>
+            <span class="od-time">${hr(dd.start)}–${hr(dd.end)}</span>
+          </button>`;
+        }).join('')}</div>
+        <div class="caption">Best score each day and its bite window. Tap a day to see it. Faded days are a week or more away, so they're less certain.</div>
+        <h3 class="sub">Top windows</h3>
+        <div class="windows">${a.windows.length ? a.windows.map(w => `<button class="win" data-t="${w.peakT}"><b>${day(w.start)} ${hr(w.start)} – ${hr(w.end)}</b><span>Peak ${w.peak} at ${hr(w.peakT)}${w.start > Date.now() / 1000 + 7 * 86400 ? ' · less certain' : ''}</span></button>`).join('') : '<span class="muted">No standout windows – conditions are fairly even.</span>'}</div>
         <div class="chart" id="score-chart">${scoreChart(a)}</div>
-        <div class="caption"><span class="key win-key"></span> Best windows <span class="key night-key"></span> Night · click a bar to jump to that hour</div>
+        <div class="caption"><span class="key win-key"></span> Best window each day <span class="key night-key"></span> Night · tap a bar to jump to that hour · pick another day above to see it here</div>
       </section>
 
       <section>
@@ -342,7 +381,7 @@
       </section>
 
       <section>
-        <h3>Next 24 hours</h3>
+        <h3>Hour by hour</h3>
         <div class="table-wrap">${hourlyTable(a)}</div>
       </section>`;
 
@@ -352,7 +391,10 @@
       localStorage.setItem('fish-favs', JSON.stringify([...state.favs]));
       render();
     };
-    $('#detail').querySelectorAll('.win').forEach(btn => btn.onclick = () => jumpTo(Number(btn.dataset.t)));
+    $('#detail').querySelectorAll('.win, .oday').forEach(btn => btn.onclick = () => jumpTo(Number(btn.dataset.t)));
+    // Keep the chosen day visible in the sideways-scrolling outlook (without scrolling the whole panel).
+    const ol = $('#detail .outlook'), selDay = $('#detail .oday.sel');
+    if (ol && selDay) ol.scrollLeft = selDay.offsetLeft - ol.clientWidth / 2 + selDay.offsetWidth / 2;
     $('#d-alert').onclick = () => { setView('alerts'); F.alerts && F.alerts.prefill(l.id); };
     $('#d-log').onclick = () => { setView('log'); F.catchlog && F.catchlog.prefill(l.id); };
     $('#d-share').onclick = () => {
@@ -460,35 +502,46 @@
     return out;
   }
 
-  function hitRects(n, x, iw, top, h) {
+  // data-k is the hour's index in the full 14-day list (the charts only draw a 3-day slice of it).
+  function hitRects(n, x, iw, top, h, k0 = 0) {
     let out = '';
-    for (let k = 0; k < n; k++) out += `<rect class="hit" data-k="${k}" x="${x(k)}" y="${top}" width="${iw}" height="${h}"/>`;
+    for (let k = 0; k < n; k++) out += `<rect class="hit" data-k="${k0 + k}" x="${x(k)}" y="${top}" width="${iw}" height="${h}"/>`;
     return out;
   }
 
+  // The charts show 3 days, starting at the beginning of the day you're looking at.
+  const CHART_HOURS = 72;
+  function chartStart(a) {
+    const day = [...a.days].reverse().find(d => d.k0 <= state.offset) || a.days[0];
+    return Math.max(0, Math.min(day ? day.k0 : 0, a.hours.length - CHART_HOURS));
+  }
+
   function scoreChart(a) {
-    const hours = a.hours, n = hours.length, HH = 170, PT = 8, PB = 24, ch = HH - PT - PB;
+    const k0 = chartStart(a), hours = a.hours.slice(k0, k0 + CHART_HOURS), n = hours.length, HH = 170, PT = 8, PB = 24, ch = HH - PT - PB;
     const { iw, x } = xScale(n), y = v => PT + ch * (1 - v / 100), base = y(0);
     let s = '';
     hours.forEach((h, k) => { if (h.light.cat === 'night') s += `<rect class="night" x="${x(k)}" y="${PT}" width="${iw + 0.5}" height="${ch}"/>`; });
-    a.windows.forEach(w => {
-      const k0 = hours.findIndex(h => h.t >= w.start), k1 = hours.findIndex(h => h.t >= w.end);
-      s += `<rect class="winband" x="${x(k0)}" y="${PT}" width="${x(k1 < 0 ? n : k1) - x(k0)}" height="${ch}"/>`;
+    hours.forEach((h, k) => { if (h.far) s += `<rect class="far" x="${x(k)}" y="${PT}" width="${iw + 0.5}" height="${ch}"/>`; });
+    // Shade each day's best bite window (from the 14-day summary) that falls inside this 3-day slice.
+    a.days.forEach(w => {
+      const s0 = hours.findIndex(h => h.t >= w.start); if (s0 < 0) return;
+      const s1 = hours.findIndex(h => h.t >= w.end);
+      s += `<rect class="winband" x="${x(s0)}" y="${PT}" width="${x(s1 < 0 ? n : s1) - x(s0)}" height="${ch}"/>`;
     });
     [25, 50, 75, 100].forEach(v => { s += `<line class="grid" x1="${PL}" x2="${CW - PR}" y1="${y(v)}" y2="${y(v)}"/><text class="axis" x="${PL - 6}" y="${y(v) + 3}" text-anchor="end">${v}</text>`; });
     hours.forEach((h, k) => {
       const bx = x(k) + 1, bw = Math.max(1, iw - 2), top = y(h.score), r = Math.min(2, bw / 2, base - top);
-      s += `<path class="bar${k === state.offset ? ' sel' : ''}" d="M${bx},${base}V${top + r}Q${bx},${top} ${bx + r},${top}H${bx + bw - r}Q${bx + bw},${top} ${bx + bw},${top + r}V${base}Z"/>`;
+      s += `<path class="bar${k0 + k === state.offset ? ' sel' : ''}${h.far ? ' farbar' : ''}" d="M${bx},${base}V${top + r}Q${bx},${top} ${bx + r},${top}H${bx + bw - r}Q${bx + bw},${top} ${bx + bw},${top + r}V${base}Z"/>`;
     });
     s += `<line class="baseline" x1="${PL}" x2="${CW - PR}" y1="${base}" y2="${base}"/>`;
     s += dayMarks(hours, x, PT, base);
     s += `<line class="cross" x1="0" x2="0" y1="${PT}" y2="${base}" visibility="hidden"/>`;
-    s += hitRects(n, x, iw, PT, ch);
-    return `<svg viewBox="0 0 ${CW} ${HH}" role="img" aria-label="Fishing score for each hour over the next 3 days">${s}</svg>`;
+    s += hitRects(n, x, iw, PT, ch, k0);
+    return `<svg viewBox="0 0 ${CW} ${HH}" role="img" aria-label="Fishing score for each hour over 3 days">${s}</svg>`;
   }
 
   function tideChart(l, a) {
-    const d = state.data[l.id], hours = a.hours, n = hours.length;
+    const d = state.data[l.id], k0 = chartStart(a), hours = a.hours.slice(k0, k0 + CHART_HOURS), n = hours.length;
     const vals = hours.map(h => d.sea[h.i]);
     if (vals.every(v => v == null)) return '<p class="empty">No tide data for this spot.</p>';
     const HH = 170, PT = 26, PB = 40, ch = HH - PT - PB;
@@ -509,12 +562,15 @@
       s += `<circle class="dot" cx="${ex}" cy="${ey}" r="4"/>`;
       s += `<text class="lbl" x="${ex}" y="${up ? ey - 10 : ey + 18}" text-anchor="middle">${up ? 'H' : 'L'} ${tm(e.t)}</text>`;
     });
-    const sx = cx(state.offset);
-    s += `<line class="now" x1="${sx}" x2="${sx}" y1="${PT - 6}" y2="${base}"/>`;
+    // Dashed curve where the tide is our prediction (past the end of the marine model).
+    const pk = hours.findIndex(h => h.tidePredicted);
+    if (pk >= 0) s += `<rect class="far" x="${x(pk)}" y="${PT}" width="${x(n) - x(pk)}" height="${ch}"/><text class="axis" x="${x(pk) + 4}" y="${PT - 8}">predicted</text>`;
+    const sk = state.offset - k0;
+    if (sk >= 0 && sk < n) { const sx = cx(sk); s += `<line class="now" x1="${sx}" x2="${sx}" y1="${PT - 6}" y2="${base}"/>`; }
     s += dayMarks(hours, x, PT, base + 12);
     s += `<line class="cross" x1="0" x2="0" y1="${PT}" y2="${base}" visibility="hidden"/>`;
-    s += hitRects(n, x, iw, PT, ch);
-    return `<svg viewBox="0 0 ${CW} ${HH}" role="img" aria-label="Tide height over the next 3 days with high and low times">${s}</svg>`;
+    s += hitRects(n, x, iw, PT, ch, k0);
+    return `<svg viewBox="0 0 ${CW} ${HH}" role="img" aria-label="Tide height over 3 days with high and low times">${s}</svg>`;
   }
 
   function bindChart(sel, tipHtml, onClick) {

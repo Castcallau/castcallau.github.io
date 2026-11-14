@@ -42,6 +42,56 @@ window.FISH = window.FISH || {};
     return out;
   }
 
+  // ---------- Extending marine data past the ~8-9 day marine forecast ----------
+  // Tides follow the moon and sun, so fit the main tidal constituents to the modelled sea level we have
+  // (least squares) and predict the rest – the same idea tide tables use. Sea temp barely changes in a week,
+  // so carry the last value forward. Swell can't be predicted that far out, so it stays unknown.
+  const CONSTITUENTS = [12.4206012, 12.0, 12.65834751, 23.93447213, 25.81933871]; // M2, S2, N2, K1, O1 periods (h)
+  function fitTide(times, vals) {
+    const rows = [], ys = [], t0 = times[0];
+    times.forEach((t, i) => {
+      if (vals[i] == null) return;
+      const h = (t - t0) / H, r = [1];
+      for (const P of CONSTITUENTS) { const w = 2 * Math.PI / P; r.push(Math.cos(w * h), Math.sin(w * h)); }
+      rows.push(r); ys.push(vals[i]);
+    });
+    const n = 1 + CONSTITUENTS.length * 2;
+    if (rows.length < 72) return null;
+    // Normal equations with a little ridge so close constituents (M2/S2/N2 over < 2 weeks) stay stable.
+    const A = Array.from({ length: n }, () => new Array(n + 1).fill(0));
+    rows.forEach((r, k) => { for (let i = 0; i < n; i++) { for (let j = 0; j < n; j++) A[i][j] += r[i] * r[j]; A[i][n] += r[i] * ys[k]; } });
+    for (let i = 1; i < n; i++) A[i][i] += rows.length * 0.02;
+    for (let c = 0; c < n; c++) {                       // Gaussian elimination
+      let p = c; for (let r = c + 1; r < n; r++) if (Math.abs(A[r][c]) > Math.abs(A[p][c])) p = r;
+      [A[c], A[p]] = [A[p], A[c]];
+      if (Math.abs(A[c][c]) < 1e-12) return null;
+      for (let r = 0; r < n; r++) if (r !== c) { const f = A[r][c] / A[c][c]; for (let k = c; k <= n; k++) A[r][k] -= f * A[c][k]; }
+    }
+    const coef = A.map((row, i) => row[n] / row[i]);
+    return t => { const h = (t - t0) / H; let v = coef[0]; CONSTITUENTS.forEach((P, k) => { const w = 2 * Math.PI / P; v += coef[1 + 2 * k] * Math.cos(w * h) + coef[2 + 2 * k] * Math.sin(w * h); }); return v; };
+  }
+  function lastIndex(arr) { for (let i = arr.length - 1; i >= 0; i--) if (arr[i] != null) return i; return -1; }
+
+  function extendMarine(d) {
+    if (d._extended) return;
+    d._extended = true;
+    const n = d.times.length;
+    const lw = lastIndex(d.wave);
+    d.marineEnd = lw >= 0 ? d.times[lw] : null;
+    const ls = lastIndex(d.sea);
+    if (ls >= 72 && ls < n - 1) {
+      const f = fitTide(d.times.slice(0, ls + 1), d.sea.slice(0, ls + 1));
+      if (f) {
+        const shift = d.sea[ls] - f(d.times[ls]);       // join smoothly onto the last modelled value
+        for (let i = ls + 1; i < n; i++) d.sea[i] = f(d.times[i]) + shift * Math.exp(-(i - ls) / 6);
+        d.tidePredictedFrom = d.times[ls + 1];
+      }
+    }
+    const lt = lastIndex(d.sst);
+    if (lt >= 0) for (let i = lt + 1; i < n; i++) d.sst[i] = d.sst[lt];
+  }
+  FISH.scoring_fitTide = fitTide; // exposed for checking accuracy
+
   function tideAt(ext, t) {
     if (!ext.length) return null;
     let prev = null, next = null;
@@ -184,6 +234,11 @@ window.FISH = window.FISH || {};
 
     // Swell
     let fSwell = 1, cap = 100;
+    const swellUnknown = !fresh && wave == null && d.marineEnd != null && t > d.marineEnd;
+    if (swellUnknown && loc.type !== 'harbour' && loc.type !== 'estuary') {
+      reasons.push({ g: 0, txt: 'Swell forecast not out yet for this day – check again closer to the day' });
+      if (loc.type === 'rock' || loc.type === 'offshore') warnings.push('No swell forecast yet this far ahead – check the swell before you go out');
+    }
     if (wave != null) {
       fSwell = SWELL[loc.type](wave);
       if (loc.type === 'rock') {
@@ -244,7 +299,8 @@ window.FISH = window.FISH || {};
     return {
       t, i, score, env, light: lt, tide, moon: m, sst, wave, wind: ws, windDir: wd, gust,
       temp: d.temp[i], rain, rainProb: d.rainProb[i], code, cloud: d.cloud[i], swell: d.swell[i], period: d.period[i],
-      species, reasons: reasons.sort((a, b) => b.g - a.g), warnings, closures, fresh, rain48,
+      species, reasons: reasons.sort((a, b) => b.g - a.g), warnings, closures, fresh, rain48, swellUnknown,
+      tidePredicted: !!(d.tidePredictedFrom && t >= d.tidePredictedFrom),
       parts: fresh ? { Flow: fFlow, Light: fLight, Wind: fWind, Pressure: fPress, Moon: Math.min(1, fMoon) }
         : { Tide: fTide, Light: fLight, Wind: fWind, Swell: fSwell, Pressure: fPress, Moon: Math.min(1, fMoon) }
     };
@@ -275,23 +331,53 @@ window.FISH = window.FISH || {};
     return wins.sort((a, b) => b.peak - a.peak).slice(0, 3).sort((a, b) => a.start - b.start);
   }
 
+  // One entry per local day: the best hour and the bite window around it.
+  const dayKeyFmts = {};
+  const dayKey = (t, tz) => (dayKeyFmts[tz] || (dayKeyFmts[tz] = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }))).format(new Date(t * 1000));
+  function dailySummary(hours, tz = 'Australia/Sydney') {
+    const days = [];
+    hours.forEach((h, k) => {
+      const key = dayKey(h.t, tz);
+      let d = days[days.length - 1];
+      if (!d || d.key !== key) days.push(d = { key, t: h.t, k0: k, hours: [] });
+      d.hours.push(k);
+    });
+    return days.map(d => {
+      let bk = d.hours[0];
+      d.hours.forEach(k => { if (hours[k].score > hours[bk].score) bk = k; });
+      const best = hours[bk], thr = best.score - 8;
+      let a = bk, b = bk;
+      while (a - 1 >= d.k0 && hours[a - 1].score >= thr) a--;
+      while (b + 1 <= d.hours[d.hours.length - 1] && hours[b + 1].score >= thr) b++;
+      return { key: d.key, t: d.t, k0: d.k0, best: best.score, peakT: best.t, peakK: bk, start: hours[a].t, end: hours[b].t + H,
+        far: best.far, swellUnknown: best.swellUnknown, top: best.species.slice(0, 2).map(s => s.id) };
+    });
+  }
+
   FISH.scoring = {
     compass, moon,
     // Conditions at any time inside the downloaded data (yesterday → +3 days); null if outside it.
     at(loc, d, t, opts = {}) {
       if (!d || !d.times.length || t < d.times[0] - H || t > d.times[d.times.length - 1] + H) return null;
+      extendMarine(d);
       let i = 0, best = Infinity;
       d.times.forEach((x, k) => { const dist = Math.abs(x - t); if (dist < best) { best = dist; i = k; } });
       return scoreHour(loc, d, i, tideExtremes(d, loc.tideLag), opts);
     },
+    HOURS: 14 * 24,
     analyse(loc, d, nowT, opts = {}) {
+      extendMarine(d);
       const ext = tideExtremes(d, loc.tideLag);
       let start = d.times.findIndex(t => t > nowT - H);
       if (start < 0) start = 0;
       const hours = [];
-      for (let i = start; i < Math.min(d.times.length, start + 72); i++) hours.push(scoreHour(loc, d, i, ext, opts));
+      for (let i = start; i < Math.min(d.times.length, start + this.HOURS); i++) {
+        const h = scoreHour(loc, d, i, ext, opts);
+        h.far = h.t > nowT + 7 * 86400;   // a week+ out: forecast is rougher
+        hours.push(h);
+      }
       const windows = bestWindows(hours);
-      return { loc, hours, extremes: ext, windows, hasTide: ext.length > 0 };
+      return { loc, hours, extremes: ext, windows, days: dailySummary(hours, loc.tz), hasTide: ext.length > 0 };
     }
   };
 })();
