@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TideLine NSW – Fishing Forecast: Best Fishing Spots, Times, Tides &amp; Bait</title>
+  <meta name="description" content="Free NSW fishing forecast. See the best fishing spots right now, the best times to go, tides, wind, swell, water temperature, target species and what bait to use – Sydney, Central Coast, Newcastle, Port Stephens, North Coast and South Coast.">
+  <meta name="keywords" content="NSW fishing forecast, best fishing times, fishing spots Sydney, tide times NSW, fishing bait guide, land based fishing NSW, kingfish, snapper, flathead, bream, mulloway">
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#104281">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="TideLine NSW – Fishing Forecast">
+  <meta property="og:description" content="The best NSW fishing spots right now, with the best times, tides, weather, target species and bait.">
+  <link rel="canonical" href="https://lapennaa07-dotcom.github.io/tideline-nsw/">
+  <meta property="og:url" content="https://lapennaa07-dotcom.github.io/tideline-nsw/">
+  <meta property="og:image" content="https://lapennaa07-dotcom.github.io/tideline-nsw/icon.svg">
+  <meta name="twitter:card" content="summary">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="manifest" href="manifest.json">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "TideLine NSW",
+    "url": "https://lapennaa07-dotcom.github.io/tideline-nsw/",
+    "alternateName": "TideLine NSW Fishing Forecast",
+    "description": "Free NSW fishing forecast showing the best fishing spots, best times, tides, weather, target species and bait.",
+    "applicationCategory": "SportsApplication",
+    "operatingSystem": "Any",
+    "areaServed": "New South Wales, Australia",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "AUD" }
+  }
+  </script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">🎣</span>
+      <div><h1>TideLine NSW</h1><div class="muted small" id="status">Loading…</div></div>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button class="tab" role="tab" data-view="spots" aria-selected="true">Spots</button>
+      <button class="tab" role="tab" data-view="species" aria-selected="false">Species guide</button>
+    </nav>
+    <button class="btn ghost" id="refresh" title="Refresh forecast">⟳ Refresh</button>
+  </header>
+
+  <div class="controls">
+    <div class="time-ctl">
+      <label for="time" id="time-label">Now</label>
+      <div class="time-row">
+        <input type="range" id="time" min="0" max="71" value="0" step="1" aria-describedby="time-label">
+        <button class="btn small" id="now-btn">Now</button>
+      </div>
+    </div>
+    <div class="filters">
+      <select id="region" aria-label="Region"></select>
+      <fieldset class="seg" aria-label="Access">
+        <label><input type="radio" name="access" value="all" checked><span>All</span></label>
+        <label><input type="radio" name="access" value="land"><span>Land</span></label>
+        <label><input type="radio" name="access" value="boat"><span>Boat</span></label>
+      </fieldset>
+      <select id="target" aria-label="Target species"></select>
+      <select id="sort" aria-label="Sort">
+        <option value="score">Best score</option>
+        <option value="distance">Nearest</option>
+        <option value="name">A–Z</option>
+      </select>
+      <input type="search" id="search" placeholder="Search spots or fish…" aria-label="Search">
+      <button class="btn" id="locate">📍 Near me</button>
+    </div>
+  </div>
+
+  <div class="error" id="error" hidden><span id="error-msg"></span> <button class="btn small" id="retry">Retry</button></div>
+
+  <main id="view-spots" class="spots">
+    <aside class="list-pane">
+      <div class="list-head"><b id="count"></b><span class="muted small">Ranked for the selected time</span></div>
+      <div id="list" class="list"><p class="empty">Loading spots…</p></div>
+    </aside>
+    <div class="map-pane">
+      <div id="map"></div>
+      <aside id="detail" class="detail" hidden></aside>
+    </div>
+  </main>
+
+  <main id="view-species" class="species-view" hidden>
+    <p class="muted">Season ratings are for NSW waters. Darker squares mean better months. Sizes and bag limits are a guide only.</p>
+    <div id="species-grid" class="species-grid"></div>
+  </main>
+
+  <footer>
+    <section class="about">
+      <h2>NSW fishing forecast – best spots, times, tides and bait</h2>
+      <p>TideLine NSW is a free fishing forecast for New South Wales saltwater anglers. It scores 31 land-based and boat fishing spots every hour for the next three days, using tides, wind, swell, sea temperature, barometric pressure, rain, sunrise and sunset, and the moon. It then ranks the best spots and tells you the best time to go.</p>
+      <p>Spots include Botany Bay, Sydney Harbour, Port Hacking, the Hawkesbury River, Long Reef, Pittwater, The Entrance, Norah Head, Lake Macquarie, Newcastle, Port Stephens, Forster, Port Macquarie, South West Rocks, Coffs Harbour, Yamba, Ballina, Wollongong, Bass Point, Jervis Bay, Batemans Bay, Narooma, Montague Island and Eden.</p>
+      <p>Each spot shows which fish are biting – bream, dusky flathead, whiting, tailor, Australian salmon, mulloway (jewfish), luderick, yellowtail kingfish, snapper, squid, trevally, drummer, mahi mahi, mackerel, bonito and tiger flathead – plus the best bait, lures and rigs for each.</p>
+    </section>
+    <p><b>Stay safe:</b> always check conditions yourself before fishing. Wear a lifejacket on rocks and in boats – it is the law at many NSW rock fishing spots and on small boats.
+      Scores are an estimate from forecast models, not a guarantee.</p>
+    <p>
+      <a href="https://www.dpi.nsw.gov.au/fishing/recreational/fishing-rules-and-regs" target="_blank" rel="noopener">NSW DPI fishing rules &amp; bag limits ↗</a> ·
+      <a href="http://www.bom.gov.au/nsw/forecasts/marine.shtml" target="_blank" rel="noopener">BOM marine forecasts &amp; warnings ↗</a> ·
+      <a href="http://www.bom.gov.au/australia/tides/" target="_blank" rel="noopener">BOM tide tables ↗</a> ·
+      Weather, swell &amp; tide data: <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a>
+    </p>
+  </footer>
+
+  <div id="tooltip" class="tooltip" hidden></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="js/data/species.js"></script>
+  <script src="js/data/locations.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/scoring.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "name": "TideLine NSW – Fishing Forecast",
+  "short_name": "TideLine",
+  "description": "Best NSW fishing spots, times, tides, weather and bait.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0d0d0d",
+  "theme_color": "#104281",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

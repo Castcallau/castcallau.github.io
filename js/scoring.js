@@ -1,0 +1,243 @@
+// Fishing score engine: turns weather, swell, tide, light and moon into a 0–100 score per hour,
+// and ranks the target species at each spot.
+window.FISH = window.FISH || {};
+(function () {
+  const SYNODIC = 29.530588853;
+  const NEW_MOON_REF = 947182440; // 2000-01-06 18:14 UTC (unix seconds)
+  const H = 3600;
+
+  const monthFmt = new Intl.DateTimeFormat('en-AU', { timeZone: 'Australia/Sydney', month: 'numeric' });
+  const monthOf = t => Number(monthFmt.format(new Date(t * 1000))) - 1;
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const lerp = (v, x0, x1, y0, y1) => y0 + (y1 - y0) * clamp((v - x0) / (x1 - x0), 0, 1);
+
+  // ---------- Moon ----------
+  function moon(t) {
+    const age = (((t - NEW_MOON_REF) / 86400) % SYNODIC + SYNODIC) % SYNODIC;
+    const illum = (1 - Math.cos(2 * Math.PI * age / SYNODIC)) / 2;
+    const names = ['New moon', 'Waxing crescent', 'First quarter', 'Waxing gibbous', 'Full moon', 'Waning gibbous', 'Last quarter', 'Waning crescent'];
+    const name = names[Math.floor(((age / SYNODIC) * 8) + 0.5) % 8];
+    const icons = ['🌑', '🌒', '🌓', '🌔', '🌕', '🌖', '🌗', '🌘'];
+    const icon = icons[Math.floor(((age / SYNODIC) * 8) + 0.5) % 8];
+    const nearNewFull = Math.min(age, Math.abs(age - SYNODIC / 2), SYNODIC - age) <= 3;
+    return { age, illum, name, icon, nearNewFull };
+  }
+
+  // ---------- Tides from modelled sea level ----------
+  function tideExtremes(d, lagMin) {
+    const v = d.sea, t = d.times, out = [];
+    for (let i = 1; i < v.length - 1; i++) {
+      if (v[i] == null || v[i - 1] == null || v[i + 1] == null) continue;
+      const hi = v[i] > v[i - 1] && v[i] >= v[i + 1];
+      const lo = v[i] < v[i - 1] && v[i] <= v[i + 1];
+      if (!hi && !lo) continue;
+      const denom = v[i - 1] - 2 * v[i] + v[i + 1];
+      const off = denom ? clamp((v[i - 1] - v[i + 1]) / (2 * denom), -0.5, 0.5) : 0;
+      const height = v[i] - 0.25 * (v[i - 1] - v[i + 1]) * off;
+      out.push({ t: t[i] + off * H + (lagMin || 0) * 60, type: hi ? 'high' : 'low', h: height });
+    }
+    return out;
+  }
+
+  function tideAt(ext, t) {
+    if (!ext.length) return null;
+    let prev = null, next = null;
+    for (const e of ext) { if (e.t <= t) prev = e; else { next = e; break; } }
+    if (!next && !prev) return null;
+    const dPrev = prev ? (t - prev.t) / H : Infinity, dNext = next ? (next.t - t) / H : Infinity;
+    const rising = next ? next.type === 'high' : prev.type === 'low';
+    const range = prev && next ? Math.abs(next.h - prev.h) : null;
+    return { rising, state: rising ? 'Rising' : 'Falling', dChange: Math.min(dPrev, dNext), prev, next, range };
+  }
+
+  // ---------- Light ----------
+  function light(d, t) {
+    let k = 0, best = Infinity;
+    for (let i = 0; i < d.sunrise.length; i++) {
+      const mid = (d.sunrise[i] + d.sunset[i]) / 2, dist = Math.abs(t - mid);
+      if (dist < best) { best = dist; k = i; }
+    }
+    const rise = d.sunrise[k], set = d.sunset[k];
+    let cat;
+    if (t >= rise - 75 * 60 && t <= rise + 90 * 60) cat = 'dawn';
+    else if (t >= set - 90 * 60 && t <= set + 75 * 60) cat = 'dusk';
+    else if (t < rise || t > set) cat = 'night';
+    else cat = 'day';
+    return { cat, rise, set, solarNoon: (rise + set) / 2 };
+  }
+
+  // Approximate solunar periods: moon overhead ≈ solar noon + (age / synodic) × 24h
+  function solunar(t, solarNoon, m) {
+    const transit = solarNoon + (m.age / SYNODIC) * 24 * H;
+    let dMajor = Infinity, dMinor = Infinity;
+    for (let k = -2; k <= 2; k++) {
+      const base = transit + k * 24.84 * H;
+      dMajor = Math.min(dMajor, Math.abs(t - base), Math.abs(t - (base + 12.42 * H)));
+      dMinor = Math.min(dMinor, Math.abs(t - (base + 6.21 * H)), Math.abs(t - (base - 6.21 * H)));
+    }
+    if (dMajor <= H) return { score: 1, label: 'Solunar major period' };
+    if (dMinor <= 0.75 * H) return { score: 0.8, label: 'Solunar minor period' };
+    return { score: 0.55, label: null };
+  }
+
+  function angleDiff(a, b) { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; }
+
+  const SWELL = {
+    rock: hs => hs < 0.6 ? 0.75 : hs <= 1.8 ? 1 : hs <= 2.5 ? 0.35 : 0.05,
+    breakwall: hs => hs < 0.5 ? 0.85 : hs <= 2 ? 1 : hs <= 3 ? 0.5 : 0.2,
+    beach: hs => hs < 0.4 ? 0.6 : hs <= 1.6 ? 1 : hs <= 2.5 ? 0.6 : 0.3,
+    offshore: hs => hs < 1.2 ? 1 : hs <= 2 ? 0.75 : hs <= 3 ? 0.35 : 0.1,
+    harbour: () => 1, estuary: () => 1
+  };
+
+  function speciesActivity(sp, ctx) {
+    const season = sp.season[ctx.month] / 3;
+    if (sp.northOf && ctx.lat < sp.northOf) return { act: 0, season: 0 };
+    let tempFit = 0.8;
+    if (ctx.sst != null) {
+      const [lo, hi] = sp.temp;
+      tempFit = ctx.sst >= lo && ctx.sst <= hi ? 1 : Math.max(0.2, 1 - (ctx.sst < lo ? lo - ctx.sst : ctx.sst - hi) / 4);
+    }
+    const tod = sp.tod[ctx.light.cat];
+    let tidePref = 0.85;
+    if (ctx.tide) {
+      if (sp.tide === 'rising') tidePref = ctx.tide.rising ? 1 : 0.6;
+      else if (sp.tide === 'falling') tidePref = ctx.tide.rising ? 0.6 : 1;
+      else if (sp.tide === 'change') tidePref = ctx.tide.dChange <= 1.5 ? 1 : 0.55;
+    }
+    let extra = 1;
+    if (sp.whiteWater && ctx.wave != null && (ctx.type === 'rock' || ctx.type === 'beach' || ctx.type === 'breakwall')) extra *= ctx.wave >= 0.7 && ctx.wave <= 2 ? 1.08 : 0.9;
+    if (sp.moon && ctx.moon.nearNewFull) extra *= 1.1;
+    const act = clamp(Math.pow(Math.max(season, 0.05), 0.8) * tempFit * (0.45 + 0.55 * tod) * (0.6 + 0.4 * tidePref) * extra, 0, 1);
+    return { act, season, tempFit, tod, tidePref };
+  }
+
+  function scoreHour(loc, d, i, ext, opts) {
+    const t = d.times[i];
+    const lt = light(d, t), m = moon(t), tide = tideAt(ext, t);
+    const sst = d.sst[i] ?? nearest(d.sst, i), wave = d.wave[i] ?? nearest(d.wave, i);
+    const reasons = [], warnings = [];
+
+    // Light
+    let fLight = lt.cat === 'dawn' || lt.cat === 'dusk' ? 1 : lt.cat === 'night' ? 0.55 : 0.45;
+    if (lt.cat === 'day' && d.cloud[i] > 70) { fLight = 0.6; reasons.push({ g: 1, txt: 'Overcast – fish less shy in daylight' }); }
+    if (lt.cat === 'dawn') reasons.push({ g: 2, txt: 'Dawn bite window' });
+    if (lt.cat === 'dusk') reasons.push({ g: 2, txt: 'Dusk bite window' });
+
+    // Tide
+    let fTide = 0.6;
+    if (tide) {
+      fTide = tide.dChange <= 1.5 ? 1 : tide.dChange <= 3 ? 0.75 : 0.65;
+      if ((loc.type === 'estuary' || loc.type === 'harbour') && tide.rising) fTide = Math.min(1, fTide + 0.1);
+      if (tide.dChange <= 1.5) reasons.push({ g: 2, txt: `Tide change ${tide.next && (tide.next.t - t) / H <= 1.5 ? 'coming up' : 'just happened'} – water starting to move` });
+      else reasons.push({ g: 0, txt: `${tide.state} tide, ${tide.dChange.toFixed(1)} h from the turn` });
+    }
+
+    // Wind (onshore component and exposure)
+    const ws = d.wind[i] ?? 0, wd = d.windDir[i] ?? 0, gust = d.gust[i] ?? ws;
+    const onshore = Math.cos(angleDiff(wd, loc.faces) * Math.PI / 180);
+    const effWind = ws * loc.exposure * (1 + 0.5 * Math.max(0, onshore)) + ws * (1 - loc.exposure) * 0.4;
+    const fWind = lerp(effWind, 12, 40, 1, 0.15);
+    if (effWind < 12) reasons.push({ g: 1, txt: `Light ${compass(wd)} wind ${Math.round(ws)} km/h` });
+    else if (effWind > 25) reasons.push({ g: -2, txt: `${onshore > 0.3 ? 'Onshore' : 'Strong'} ${compass(wd)} wind ${Math.round(ws)} km/h (gusts ${Math.round(gust)})` });
+    else reasons.push({ g: -1, txt: `Moderate ${compass(wd)} wind ${Math.round(ws)} km/h` });
+    if (gust >= 45 && (loc.type === 'offshore' || opts.boat)) warnings.push(`Gusts to ${Math.round(gust)} km/h – unsafe for small boats and kayaks`);
+
+    // Swell
+    let fSwell = 1, cap = 100;
+    if (wave != null) {
+      fSwell = SWELL[loc.type](wave);
+      if (loc.type === 'rock') {
+        if (wave > 2.5) { cap = 12; warnings.push(`DANGER: ${wave.toFixed(1)} m swell – do not fish these rocks`); }
+        else if (wave > 1.8) { cap = 45; warnings.push(`${wave.toFixed(1)} m swell – rock fishing risky, watch sets for 15 min first`); }
+        else if (wave >= 0.7) reasons.push({ g: 1, txt: `${wave.toFixed(1)} m swell – nice white-water wash` });
+      } else if (loc.type === 'offshore') {
+        if (wave > 3) { cap = 15; warnings.push(`${wave.toFixed(1)} m seas – stay in port`); }
+        else if (wave > 2) { cap = 45; warnings.push(`${wave.toFixed(1)} m seas – rough offshore and bar crossings`); }
+        else if (wave < 1.2) reasons.push({ g: 1, txt: `Calm ${wave.toFixed(1)} m sea offshore` });
+      } else if (loc.type === 'breakwall' && wave > 2.5) { cap = 40; warnings.push(`${wave.toFixed(1)} m swell – stay off the wall end`); }
+      else if (loc.type === 'beach') {
+        if (wave >= 0.4 && wave <= 1.6) reasons.push({ g: 1, txt: `${wave.toFixed(1)} m surf – gutters working` });
+        else if (wave > 2.5) reasons.push({ g: -2, txt: `${wave.toFixed(1)} m surf – very hard to hold bottom` });
+      }
+    }
+
+    // Pressure trend (hPa over 3h)
+    let fPress = 0.8;
+    if (i >= 3 && d.pressure[i] != null && d.pressure[i - 3] != null) {
+      const dp = d.pressure[i] - d.pressure[i - 3];
+      if (dp <= -0.5 && dp >= -3) { fPress = 1; reasons.push({ g: 1, txt: 'Barometer falling slowly – fish feeding up' }); }
+      else if (Math.abs(dp) < 0.5) fPress = 0.85;
+      else if (dp > 0.5 && dp <= 2) fPress = 0.7;
+      else { fPress = 0.55; reasons.push({ g: -1, txt: `Pressure changing fast (${dp > 0 ? '+' : ''}${dp.toFixed(1)} hPa / 3 h)` }); }
+    }
+
+    // Rain / storms
+    let fRain = 1;
+    const rain = d.rain[i] ?? 0, code = d.code[i] ?? 0;
+    if (code >= 95) { fRain = 0.3; warnings.push('Thunderstorms forecast – get off the water and away from rod tips'); }
+    else if (rain > 4) { fRain = 0.65; reasons.push({ g: -1, txt: `Heavy rain (${rain.toFixed(1)} mm/h)` }); }
+    else if (rain > 1) fRain = 0.88;
+
+    // Moon / solunar
+    const sol = solunar(t, lt.solarNoon, m);
+    let fMoon = sol.score + (m.nearNewFull ? 0.1 : 0);
+    if (sol.label) reasons.push({ g: sol.score === 1 ? 1 : 0, txt: sol.label + ' (approx.)' });
+
+    const env = (0.26 * fTide + 0.24 * fLight + 0.22 * fWind + 0.1 * fSwell + 0.1 * fPress + 0.08 * Math.min(1, fMoon)) * fRain;
+
+    // Species
+    const ctx = { month: monthOf(t), sst, wave, light: lt, tide, moon: m, type: loc.type, lat: loc.lat };
+    const species = loc.species.map(id => ({ id, ...speciesActivity(FISH.SPECIES[id], ctx) })).sort((a, b) => b.act - a.act);
+    let spFactor;
+    if (opts.target && loc.species.includes(opts.target)) spFactor = species.find(s => s.id === opts.target).act;
+    else spFactor = species.slice(0, 2).reduce((s, x) => s + x.act, 0) / Math.min(2, species.length);
+
+    // Power curve spreads the scale so only genuinely prime windows reach "Excellent".
+    const score = Math.round(Math.min(cap, 100 * Math.pow(clamp(0.55 * env + 0.45 * spFactor, 0, 1), 1.8)));
+    return {
+      t, i, score, env, light: lt, tide, moon: m, sst, wave, wind: ws, windDir: wd, gust,
+      temp: d.temp[i], rain, rainProb: d.rainProb[i], code, cloud: d.cloud[i], swell: d.swell[i], period: d.period[i],
+      species, reasons: reasons.sort((a, b) => b.g - a.g), warnings,
+      parts: { Tide: fTide, Light: fLight, Wind: fWind, Swell: fSwell, Pressure: fPress, Moon: Math.min(1, fMoon) }
+    };
+  }
+
+  function nearest(arr, i) {
+    for (let k = 1; k < 6; k++) { if (arr[i - k] != null) return arr[i - k]; if (arr[i + k] != null) return arr[i + k]; }
+    return null;
+  }
+
+  function compass(deg) {
+    return ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'][Math.round(((deg % 360) / 22.5)) % 16];
+  }
+
+  function bestWindows(hours) {
+    if (!hours.length) return [];
+    const max = Math.max(...hours.map(h => h.score));
+    const thr = Math.max(50, max - 10);
+    const wins = [];
+    let cur = null;
+    hours.forEach(h => {
+      if (h.score >= thr) {
+        if (!cur) cur = { start: h.t, end: h.t + H, peak: h.score, peakT: h.t };
+        else { cur.end = h.t + H; if (h.score > cur.peak) { cur.peak = h.score; cur.peakT = h.t; } }
+      } else if (cur) { wins.push(cur); cur = null; }
+    });
+    if (cur) wins.push(cur);
+    return wins.sort((a, b) => b.peak - a.peak).slice(0, 3).sort((a, b) => a.start - b.start);
+  }
+
+  FISH.scoring = {
+    compass, moon,
+    analyse(loc, d, nowT, opts = {}) {
+      const ext = tideExtremes(d, loc.tideLag);
+      let start = d.times.findIndex(t => t > nowT - H);
+      if (start < 0) start = 0;
+      const hours = [];
+      for (let i = start; i < Math.min(d.times.length, start + 72); i++) hours.push(scoreHour(loc, d, i, ext, opts));
+      const windows = bestWindows(hours);
+      return { loc, hours, extremes: ext, windows, hasTide: ext.length > 0 };
+    }
+  };
+})();
