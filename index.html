@@ -42,7 +42,7 @@
   }
   </script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="css/styles.css?v=202611141910">
+  <link rel="stylesheet" href="css/styles.css?v=202611151047">
 </head>
 <body>
   <header class="top">
@@ -82,6 +82,10 @@
         <label><input type="radio" name="access" value="all" checked><span>All</span></label>
         <label><input type="radio" name="access" value="land"><span>Land</span></label>
         <label><input type="radio" name="access" value="boat"><span>Boat</span></label>
+      </fieldset>
+      <fieldset class="seg" aria-label="Wind units">
+        <label><input type="radio" name="units" value="kmh" checked><span>km/h</span></label>
+        <label><input type="radio" name="units" value="kn"><span>knots</span></label>
       </fieldset>
       <select id="target" aria-label="Target species"></select>
       <select id="sort" aria-label="Sort">
@@ -236,15 +240,15 @@
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="js/migrate.js?v=202611141910"></script>
-  <script src="js/data/species.js?v=202611141910"></script>
-  <script src="js/data/locations.js?v=202611141910"></script>
-  <script src="js/data/locations-au.js?v=202611141910"></script>
-  <script src="js/api.js?v=202611141910"></script>
-  <script src="js/scoring.js?v=202611141910"></script>
-  <script src="js/pins.js?v=202611141910"></script>
-  <script src="js/app.js?v=202611141910"></script>
-  <script src="js/alerts.js?v=202611141910"></script>
-  <script src="js/catchlog.js?v=202611141910"></script>
+  <script src="js/migrate.js?v=202611151047"></script>
+  <script src="js/data/species.js?v=202611151047"></script>
+  <script src="js/data/locations.js?v=202611151047"></script>
+  <script src="js/data/locations-au.js?v=202611151047"></script>
+  <script src="js/api.js?v=202611151047"></script>
+  <script src="js/scoring.js?v=202611151047"></script>
+  <script src="js/pins.js?v=202611151047"></script>
+  <script src="js/app.js?v=202611151047"></script>
+  <script src="js/alerts.js?v=202611151047"></script>
+  <script src="js/catchlog.js?v=202611151047"></script>
 </body>
 </html>

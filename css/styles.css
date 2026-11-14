@@ -315,6 +315,23 @@ footer .about h2 { font-size: 13px; color: var(--ink); margin: 0 0 4px; }
 .tab .ti { margin-right: 4px; }
 .top-actions { display: flex; gap: 6px; }
 
+/* Tides & bite times */
+.times-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; }
+.times-box { background: var(--surface-2); border-radius: 10px; padding: 10px 12px; }
+.times-box h4 { margin: 0 0 6px; font-size: 13px; }
+.times-box ul { list-style: none; margin: 0 0 4px; padding: 0; font-size: 13px; }
+.times-box li { display: grid; grid-template-columns: 58px 1fr; column-gap: 6px; padding: 2px 0; }
+.times-box li span { font-variant-numeric: tabular-nums; }
+.times-box li small { grid-column: 2; color: var(--ink-2); font-size: 11.5px; }
+.times-box > small { font-size: 11px; }
+
+/* Score breakdown */
+.parts { margin-top: 8px; font-size: 13px; }
+.parts summary { cursor: pointer; color: var(--accent); }
+.parts-grid { display: grid; grid-template-columns: 70px 1fr 28px; gap: 5px 8px; align-items: center; margin: 8px 0 4px; }
+.parts-grid .pk { color: var(--ink-2); font-size: 12px; }
+.parts-grid .pv { font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
+
 /* 14 days: day picker under the slider */
 .day-chips { display: flex; gap: 6px; overflow-x: auto; padding: 8px 0 2px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 .day-chips::-webkit-scrollbar { display: none; }

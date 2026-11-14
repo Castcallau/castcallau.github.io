@@ -18,7 +18,7 @@
 
   const state = {
     data: null, analyses: {}, offset: 0, region: 'all', access: 'all', water: 'all', target: '', sort: 'score', search: '',
-    userPos: null, selected: null, view: 'spots', fetchedAt: null,
+    userPos: null, selected: null, view: 'spots', fetchedAt: null, units: localStorage.getItem('castcall-units') || 'kmh',
     favs: new Set(JSON.parse(localStorage.getItem('fish-favs') || '[]'))
   };
   let map = null; const markers = {};
@@ -42,6 +42,12 @@
   }
   const arrow = deg => `<span class="arrow" style="transform:rotate(${(deg + 180) % 360}deg)" aria-hidden="true">↑</span>`;
   const n1 = v => v == null ? '–' : v.toFixed(1);
+  // Wind units: km/h or knots (boaties). Text built elsewhere (score reasons, warnings) says "km/h", so convert it on display.
+  const unit = () => state.units === "kn" ? "kn" : "km/h";
+  const spd = v => v == null ? "–" : Math.round(state.units === "kn" ? v / 1.852 : v);
+  const convertUnits = html => state.units !== "kn" ? html : html
+    .replace(/(\d+(?:\.\d+)?)\s?km\/h/g, (m, n) => Math.round(n / 1.852) + ' kn')
+    .replace(/(gusts(?: to)?) (\d+)(?![\d.]* ?kn)/gi, (m, w, n) => `${w} ${Math.round(n / 1.852)}`);
 
   function distKm(a, b) {
     const R = 6371, dLat = (b[0] - a[0]) * Math.PI / 180, dLon = (b[1] - a[1]) * Math.PI / 180;
@@ -202,7 +208,7 @@
       const b = $('#empty-pin'); if (b) b.onclick = () => $('#pin-start').click();
       return;
     }
-    $('#list').innerHTML = list.map((l, rank) => {
+    $('#list').innerHTML = convertUnits(list.map((l, rank) => {
       curTZ = l.tz;
       const a = state.analyses[l.id], h = hourOf(l.id), b = bucket(h.score);
       const top = rank === 0 && state.sort === 'score' && list.length > 1;
@@ -227,7 +233,7 @@
           ${h.warnings.length ? `<div class="card-warn">⚠️ ${esc(h.warnings[0])}</div>` : ''}
           ${h.closures.length ? `<div class="card-closed">⛔ Closed season for ${h.species.filter(s => s.closed).map(s => SP[s.id].name.split(' (')[0]).join(', ')}</div>` : ''}
         </div></button>`;
-    }).join('');
+    }).join(''));
   }
 
   function initMap() {
@@ -309,7 +315,7 @@
     $('#detail').hidden = false;
     CW = Math.round(Math.max(330, Math.min(680, $('#detail').clientWidth - 36)));
 
-    $('#detail').innerHTML = `
+    $('#detail').innerHTML = convertUnits(`
       <div class="d-head">
         <div>
           <h2>${l.pin ? '📌 ' : ''}${esc(l.name)}</h2>
@@ -331,6 +337,12 @@
             ${neu.map(r => `<li class="neu">• ${esc(r.txt)}</li>`).join('')}
             ${neg.map(r => `<li class="neg">✗ ${esc(r.txt)}</li>`).join('')}
           </ul>
+          <details class="parts">
+            <summary>How this score is made</summary>
+            <div class="parts-grid">${Object.entries(h.parts).map(([k, v]) => `<span class="pk">${k}</span><span class="meter" aria-hidden="true"><i style="width:${Math.round(v * 100)}%"></i></span><span class="pv">${Math.round(v * 100)}</span>`).join('')}
+              <span class="pk">Fish</span><span class="meter" aria-hidden="true"><i style="width:${Math.round((h.species[0] ? h.species[0].act : 0) * 100)}%"></i></span><span class="pv">${Math.round((h.species[0] ? h.species[0].act : 0) * 100)}</span></div>
+            <p class="muted small">Each bar is out of 100. Conditions make up about half the score and how well the fish here should be biting makes up the rest. It's a rule-of-thumb model, so let me know if it doesn't match what you catch.</p>
+          </details>
         </div>
       </div>
       ${h.warnings.length ? `<div class="warn-box" role="alert">${h.warnings.map(w => `<div>⚠️ ${esc(w)}</div>`).join('')}</div>` : ''}
@@ -384,6 +396,8 @@
         </div>
       </section>
 
+      ${timesSection(l, a, h)}
+
       ${h.fresh ? '' : `<section>
         <h3>Tides</h3>
         <div class="chart" id="tide-chart">${tideChart(l, a)}</div>
@@ -400,13 +414,14 @@
         <p>${esc(l.notes)}</p>
         <p class="muted">📍 ${esc(l.access_info)}</p>
         <p><a href="https://www.google.com/maps/dir/?api=1&destination=${l.lat},${l.lon}" target="_blank" rel="noopener">Directions in Google Maps ↗</a> · ${rulesLink(l)}</p>
+        <p class="small"><a href="http://www.bom.gov.au/${l.state === 'ACT' ? 'nsw' : l.state.toLowerCase()}/warnings/" target="_blank" rel="noopener">⚠️ BOM ${l.water === 'fresh' ? 'weather &amp; flood' : 'marine &amp; weather'} warnings (${l.state}) ↗</a></p>
         <p class="small"><a class="shop-near" href="${tackleNearby(l)}" target="_blank" rel="noopener">🛒 Bait &amp; tackle shops near here ↗</a></p>
       </section>
 
       <section>
         <h3>Hour by hour</h3>
         <div class="table-wrap">${hourlyTable(a)}</div>
-      </section>`;
+      </section>`);
 
     $('#close').onclick = () => closeDetail(false);
     $('#fav').onclick = () => {
@@ -444,6 +459,33 @@
       const x = a.hours[k], v = state.data[l.id].sea[x.i];
       return `<b>${day(x.t)} ${hr(x.t)}</b><br>${v == null ? 'no data' : v.toFixed(2) + ' m'}${x.tide ? ' · ' + x.tide.state : ''}`;
     }, k => { state.offset = k; $('#time').value = k; render(); });
+  }
+
+  // Tide table + solunar bite times + sun & moon for the day you're looking at (like a tide/solunar calendar).
+  function timesSection(l, a, h) {
+    const di = Math.max(0, a.days.findIndex((d, i) => state.offset >= d.k0 && (!a.days[i + 1] || state.offset < a.days[i + 1].k0)));
+    const d = a.days[di], k1 = a.days[di + 1] ? a.days[di + 1].k0 : a.hours.length;
+    const dayHours = a.hours.slice(d.k0, k1), from = dayHours[0].t, to = dayHours[dayHours.length - 1].t + H;
+    const label = di === 0 ? 'today' : `${day(d.t)} ${fmt(l.tz, { day: 'numeric', month: 'short' }).format(new Date(d.t * 1000))}`;
+    const span = w => `${tm(w.start)} – ${tm(w.end)}`;
+    const tides = h.fresh ? [] : a.extremes.filter(e => e.t >= from && e.t < to);
+    const predicted = tides.some(e => state.data[l.id].tidePredictedFrom && e.t >= state.data[l.id].tidePredictedFrom);
+    const sol = S.solunarDay(dayHours), mid = dayHours[Math.floor(dayHours.length / 2)];
+    const li = (k, v, s = '') => `<li><b>${k}</b><span>${v}</span>${s ? `<small>${s}</small>` : ''}</li>`;
+    return `<section>
+      <h3>Tides &amp; bite times – ${label}</h3>
+      <div class="times-grid">
+        ${h.fresh ? '' : `<div class="times-box"><h4>🌊 Tides</h4><ul>${tides.length ? tides.map(e => li(e.type === 'high' ? 'High' : 'Low', tm(e.t), `${e.h >= 0 ? '+' : ''}${e.h.toFixed(2)} m`)).join('') : '<li class="muted">No tide data</li>'}</ul>
+          <small class="muted">${predicted ? 'Predicted by CastCall this far out · ' : ''}heights vs mean sea level</small></div>`}
+        <div class="times-box"><h4>🎣 Bite times</h4><ul>
+          ${sol.major.map(w => li('Major', span(w))).join('')}${sol.minor.map(w => li('Minor', span(w))).join('')}
+          ${!sol.major.length && !sol.minor.length ? '<li class="muted">None left today</li>' : ''}</ul>
+          <small class="muted">Solunar periods (approx.) – majors are usually the stronger bite</small></div>
+        <div class="times-box"><h4>☀️ Sun &amp; moon</h4><ul>
+          ${li('Sunrise', tm(mid.light.rise))}${li('Sunset', tm(mid.light.set))}
+          ${li(mid.moon.icon + ' Moon', `${Math.round(mid.moon.illum * 100)}%`, mid.moon.name)}</ul></div>
+      </div>
+    </section>`;
   }
 
   function pressureTrend(id, i) {
@@ -504,10 +546,10 @@
   function hourlyTable(a) {
     const rows = a.hours.slice(state.offset, state.offset + 24).map(x => `<tr${x.light.cat === 'night' ? ' class="night"' : ''}>
       <td>${day(x.t)} ${hr(x.t)}</td><td class="num"><b>${x.score}</b></td>
-      <td>${arrow(x.windDir)} ${Math.round(x.wind)} <span class="muted">(${Math.round(x.gust)})</span></td>
+      <td>${arrow(x.windDir)} ${spd(x.wind)} <span class="muted">(${spd(x.gust)})</span></td>
       <td class="num">${n1(x.wave)}</td><td>${x.tide ? x.tide.state : '–'}</td>
       <td>${wx(x.code)[0]} ${Math.round(x.temp)}°</td><td class="num">${x.rainProb ?? '–'}%</td></tr>`).join('');
-    return `<table><thead><tr><th>Time</th><th>Score</th><th>Wind km/h</th><th>Swell m</th><th>Tide</th><th>Weather</th><th>Rain</th></tr></thead><tbody>${rows}</tbody></table>`;
+    return `<table><thead><tr><th>Time</th><th>Score</th><th>Wind ${unit()}</th><th>Swell m</th><th>Tide</th><th>Weather</th><th>Rain</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
 
   // ---------------- Charts ----------------
@@ -603,7 +645,7 @@
     svg.querySelectorAll('.hit').forEach(r => {
       const k = Number(r.dataset.k);
       r.addEventListener('pointerenter', () => {
-        tip.innerHTML = tipHtml(k); tip.hidden = false;
+        tip.innerHTML = convertUnits(tipHtml(k)); tip.hidden = false;
         const mid = Number(r.getAttribute('x')) + Number(r.getAttribute('width')) / 2;
         cross.setAttribute('x1', mid); cross.setAttribute('x2', mid); cross.setAttribute('visibility', 'visible');
       });
@@ -689,6 +731,7 @@
     $('#species-search').oninput = e => { state.speciesQ = e.target.value; renderSpecies(); };
     document.querySelectorAll('[name=access]').forEach(r => r.onchange = e => { state.access = e.target.value; compute(); render(); });
     document.querySelectorAll('[name=water]').forEach(r => r.onchange = e => { state.water = e.target.value; render(); });
+    document.querySelectorAll('[name=units]').forEach(r => { r.checked = r.value === state.units; r.onchange = e => { state.units = e.target.value; localStorage.setItem('castcall-units', state.units); render(); }; });
     $('#locate').onclick = locate;
     $('#refresh').onclick = () => load(true);
     $('#share-app').onclick = () => share('CastCall – Australian fishing forecast',
@@ -878,7 +921,7 @@
       }).join('');
   }
 
-  F.ui = { state, tm, hr, day, esc, select, setView, render, bucket, LABEL, TYPE, wx, arrow, n1, sizeTxt, regionOptions,
+  F.ui = { state, tm, hr, day, esc, spd, unit, convertUnits, select, setView, render, bucket, LABEL, TYPE, wx, arrow, n1, sizeTxt, regionOptions,
     jumpTo, showError, loadPins, closeDetail, findLoc: id => F.LOCATIONS.find(l => l.id === id), get map() { return map; } };
 
   document.addEventListener('DOMContentLoaded', init);

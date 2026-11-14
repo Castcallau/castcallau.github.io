@@ -85,7 +85,7 @@ window.FISH = window.FISH || {};
     const u = F.ui, d = new Date(c.t * 1000);
     const when = d.toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' });
     const cond = c.cond ? [
-      `Score ${c.cond.score}`, `${u.arrow(c.cond.windDir)} ${c.cond.wind} km/h`,
+      `Score ${c.cond.score}`, `${u.arrow(c.cond.windDir)} ${u.spd(c.cond.wind)} ${u.unit()}`,
       c.cond.wave != null ? `🌊 ${c.cond.wave.toFixed(1)} m` : null, c.cond.rain48 != null ? `🌧️ ${c.cond.rain48} mm/48h` : null,
       c.cond.sst != null ? `🌡️ ${c.cond.sst}° water` : null, c.cond.tide ? `${c.cond.tide} tide` : null, c.cond.light, c.cond.moon
     ].filter(Boolean).map(x => `<span class="chip">${x}</span>`).join('') : '<span class="muted small">No conditions saved (outside forecast range)</span>';

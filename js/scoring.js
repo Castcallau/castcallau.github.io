@@ -227,9 +227,11 @@ window.FISH = window.FISH || {};
     const onshore = Math.cos(angleDiff(wd, loc.faces) * Math.PI / 180);
     const effWind = ws * loc.exposure * (1 + 0.5 * Math.max(0, onshore)) + ws * (1 - loc.exposure) * 0.4;
     const fWind = lerp(effWind, 12, 40, 1, 0.15);
-    if (effWind < 12) reasons.push({ g: 1, txt: `Light ${compass(wd)} wind ${Math.round(ws)} km/h` });
+    // Wording follows how much the wind actually affects THIS spot (sheltered spots shrug off a breeze).
+    if (effWind < 12) reasons.push({ g: 1, txt: `${ws < 15 ? 'Light' : 'Sheltered from the'} ${compass(wd)} wind ${Math.round(ws)} km/h` });
     else if (effWind > 25) reasons.push({ g: -2, txt: `${onshore > 0.3 ? 'Onshore' : 'Strong'} ${compass(wd)} wind ${Math.round(ws)} km/h (gusts ${Math.round(gust)})` });
-    else reasons.push({ g: -1, txt: `Moderate ${compass(wd)} wind ${Math.round(ws)} km/h` });
+    else if (effWind > 18) reasons.push({ g: -1, txt: `Breezy ${compass(wd)} wind ${Math.round(ws)} km/h` });
+    else reasons.push({ g: 0, txt: `Moderate ${compass(wd)} wind ${Math.round(ws)} km/h – fishable` });
     if (gust >= 45 && (loc.type === 'offshore' || opts.boat)) warnings.push(`Gusts to ${Math.round(gust)} km/h – unsafe for small boats and kayaks`);
 
     // Swell
@@ -354,8 +356,23 @@ window.FISH = window.FISH || {};
     });
   }
 
+  // Solunar periods for one day (approx.): majors = moon overhead/underfoot (±1 h), minors = moonrise/set (±45 min).
+  function solunarDay(dayHours) {
+    if (!dayHours.length) return { major: [], minor: [] };
+    const h0 = dayHours[0], from = h0.t, to = dayHours[dayHours.length - 1].t + H;
+    const transit = h0.light.solarNoon + (h0.moon.age / SYNODIC) * 24 * H;
+    const major = [], minor = [];
+    for (let k = -2; k <= 2; k++) {
+      const base = transit + k * 24.84 * H;
+      [base, base + 12.42 * H].forEach(c => { if (c >= from && c < to) major.push({ start: c - H, end: c + H, mid: c }); });
+      [base + 6.21 * H, base - 6.21 * H].forEach(c => { if (c >= from && c < to) minor.push({ start: c - 0.75 * H, end: c + 0.75 * H, mid: c }); });
+    }
+    const uniq = arr => arr.sort((a, b) => a.mid - b.mid).filter((x, i, a) => !i || Math.abs(x.mid - a[i - 1].mid) > H);
+    return { major: uniq(major), minor: uniq(minor) };
+  }
+
   FISH.scoring = {
-    compass, moon,
+    compass, moon, solunarDay,
     // Conditions at any time inside the downloaded data (yesterday → +3 days); null if outside it.
     at(loc, d, t, opts = {}) {
       if (!d || !d.times.length || t < d.times[0] - H || t > d.times[d.times.length - 1] + H) return null;
