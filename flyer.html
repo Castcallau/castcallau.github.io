@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CastCall – printable flyer</title>
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <style>
+    @page { size: A4; margin: 0; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #e9eef5; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #0b0b0b; }
+    .bar { max-width: 210mm; margin: 16px auto; display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 0 8px; }
+    .bar button { font: 600 15px system-ui, sans-serif; padding: 10px 16px; border-radius: 8px; border: 0; background: #2a78d6; color: #fff; cursor: pointer; }
+    .bar a { color: #2a78d6; }
+    .sheet { width: 210mm; min-height: 297mm; margin: 0 auto 24px; background: #fff; box-shadow: 0 6px 30px rgba(0,0,0,.15); display: flex; flex-direction: column; overflow: hidden; }
+    .hero { background: linear-gradient(150deg, #0d366b, #1c5cab); color: #fff; padding: 22mm 18mm 16mm; text-align: center; position: relative; }
+    .hero img { width: 34mm; height: 34mm; border-radius: 8mm; box-shadow: 0 4mm 10mm rgba(0,0,0,.25); }
+    .hero h1 { font-size: 26mm; line-height: 1; margin: 6mm 0 3mm; letter-spacing: -0.5mm; }
+    .hero p { font-size: 7.5mm; margin: 0; color: #cde2fb; font-weight: 600; }
+    .body { padding: 12mm 18mm 8mm; flex: 1; display: grid; grid-template-columns: 1fr 62mm; gap: 10mm; align-items: center; }
+    .body ul { list-style: none; margin: 0; padding: 0; font-size: 6mm; line-height: 1.35; }
+    .body li { display: flex; gap: 4mm; margin-bottom: 5mm; }
+    .body li b { display: block; }
+    .body li span.t { color: #52514e; font-size: 4.6mm; }
+    .ico { font-size: 8mm; line-height: 1; width: 10mm; flex: none; text-align: center; }
+    .qr { text-align: center; }
+    .qr #qr { width: 62mm; height: 62mm; margin: 0 auto; }
+    .qr #qr svg { width: 100%; height: 100%; }
+    .qr .scan { font-weight: 800; font-size: 6mm; margin-top: 3mm; color: #104281; }
+    .foot { background: #f0efec; padding: 7mm 18mm; text-align: center; }
+    .foot .url { font-size: 5.2mm; font-weight: 700; color: #104281; word-break: break-all; }
+    .foot .free { font-size: 4.4mm; color: #52514e; margin-top: 2mm; }
+    @media print {
+      body { background: #fff; }
+      .bar { display: none; }
+      .sheet { box-shadow: none; margin: 0; }
+      .hero, .foot { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+  <div class="bar">
+    <span>Print this and pin it up at tackle shops, boat ramps, jetties and club noticeboards (ask first!).</span>
+    <button onclick="window.print()">🖨 Print / save as PDF</button>
+  </div>
+
+  <div class="sheet">
+    <div class="hero">
+      <img src="icon-512.png" alt="CastCall logo">
+      <h1>CastCall</h1>
+      <p>Australia's free fishing forecast</p>
+    </div>
+    <div class="body">
+      <ul>
+        <li><span class="ico">🏆</span><div><b>Where to fish right now</b><span class="t">110+ spots ranked every hour – salt and fresh, every state</span></div></li>
+        <li><span class="ico">⏰</span><div><b>The best time to go</b><span class="t">Bite windows for the next 3 days</span></div></li>
+        <li><span class="ico">🌊</span><div><b>Tides, wind, swell &amp; water temp</b><span class="t">Live for every spot</span></div></li>
+        <li><span class="ico">🎣</span><div><b>What's biting &amp; what bait to use</b><span class="t">Baits, lures and rigs for 33 fish</span></div></li>
+        <li><span class="ico">📌</span><div><b>Pin your own secret spot</b><span class="t">Get a full rundown for exactly where you fish</span></div></li>
+      </ul>
+      <div class="qr">
+        <div id="qr" role="img" aria-label="QR code linking to CastCall"></div>
+        <div class="scan">Scan me 📱</div>
+      </div>
+    </div>
+    <div class="foot">
+      <div class="url" id="url"></div>
+      <div class="free">Free · No sign-up · Works on any phone or computer</div>
+    </div>
+  </div>
+
+  <!-- QR code is drawn in your browser by this small open-source library – nothing is sent anywhere. -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+  <script>
+    // Shrink the A4 sheet to fit small screens (printing is always full size).
+    const fit = () => { const s = document.querySelector('.sheet'); s.style.zoom = ''; s.style.zoom = Math.min(1, (window.innerWidth - 16) / s.offsetWidth); };
+    window.addEventListener('resize', fit); fit();
+    window.addEventListener('beforeprint', () => { document.querySelector('.sheet').style.zoom = ''; });
+    window.addEventListener('afterprint', fit);
+    const url = 'https://lapennaa07-dotcom.github.io/tideline-nsw/';
+    document.getElementById('url').textContent = url.replace('https://', '');
+    try {
+      const qr = qrcode(0, 'M');
+      qr.addData(url); qr.make();
+      document.getElementById('qr').innerHTML = qr.createSvgTag(8, 0);
+    } catch (e) {
+      document.getElementById('qr').innerHTML = '<p style="font-size:5mm">Couldn\'t draw the QR code offline – connect to the internet and reload.</p>';
+    }
+  </script>
+</body>
+</html>

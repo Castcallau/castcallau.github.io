@@ -313,6 +313,9 @@ footer .about { max-width: 900px; margin-bottom: 10px; }
 footer .about h2 { font-size: 13px; color: var(--ink); margin: 0 0 4px; }
 
 .tab .ti { margin-right: 4px; }
+.top-actions { display: flex; gap: 6px; }
+.toast { position: fixed; left: 50%; bottom: calc(24px + var(--tabbar, 0px)); transform: translateX(-50%); z-index: 3000; background: var(--ink); color: var(--page);
+  padding: 10px 16px; border-radius: 999px; font-weight: 600; box-shadow: 0 6px 20px rgba(0,0,0,.3); animation: rise-in .2s ease-out; }
 
 /* Pins */
 .tag { display: inline-block; font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px; background: var(--win); color: var(--accent); vertical-align: middle; margin-left: 4px; }

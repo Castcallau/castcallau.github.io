@@ -14,10 +14,18 @@
   <meta property="og:description" content="The best fishing spots in Australia right now – salt and fresh – with the best times, tides, weather, what's biting and the bait to use.">
   <link rel="canonical" href="https://lapennaa07-dotcom.github.io/tideline-nsw/">
   <meta property="og:url" content="https://lapennaa07-dotcom.github.io/tideline-nsw/">
-  <meta property="og:image" content="https://lapennaa07-dotcom.github.io/tideline-nsw/icon.svg">
-  <meta name="twitter:card" content="summary">
+  <meta property="og:image" content="https://lapennaa07-dotcom.github.io/tideline-nsw/share.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="CastCall – Australia's free fishing forecast">
+  <meta property="og:site_name" content="CastCall">
+  <meta property="og:locale" content="en_AU">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://lapennaa07-dotcom.github.io/tideline-nsw/share.png">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <meta name="apple-mobile-web-app-title" content="CastCall">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="manifest" href="manifest.json">
   <script type="application/ld+json">
   {
@@ -34,7 +42,7 @@
   }
   </script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="css/styles.css?v=202611141805">
+  <link rel="stylesheet" href="css/styles.css?v=202611141816">
 </head>
 <body>
   <header class="top">
@@ -48,7 +56,7 @@
       <button class="tab" role="tab" data-view="log" aria-selected="false"><span class="ti" aria-hidden="true">📓</span><span>Catch log</span></button>
       <button class="tab" role="tab" data-view="species" aria-selected="false"><span class="ti" aria-hidden="true">🐟</span><span>Species</span></button>
     </nav>
-    <button class="btn ghost" id="refresh" title="Refresh forecast">⟳ Refresh</button>
+    <div class="top-actions"><button class="btn ghost" id="share-app" title="Share CastCall with a mate">📤 Share</button><button class="btn ghost" id="refresh" title="Refresh forecast">⟳ Refresh</button></div>
   </header>
 
   <div class="alert-banner" id="alert-banner" hidden></div>
@@ -224,16 +232,17 @@
   </dialog>
 
   <div id="tooltip" class="tooltip" hidden></div>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="js/data/species.js?v=202611141805"></script>
-  <script src="js/data/locations.js?v=202611141805"></script>
-  <script src="js/data/locations-au.js?v=202611141805"></script>
-  <script src="js/api.js?v=202611141805"></script>
-  <script src="js/scoring.js?v=202611141805"></script>
-  <script src="js/pins.js?v=202611141805"></script>
-  <script src="js/app.js?v=202611141805"></script>
-  <script src="js/alerts.js?v=202611141805"></script>
-  <script src="js/catchlog.js?v=202611141805"></script>
+  <script src="js/data/species.js?v=202611141816"></script>
+  <script src="js/data/locations.js?v=202611141816"></script>
+  <script src="js/data/locations-au.js?v=202611141816"></script>
+  <script src="js/api.js?v=202611141816"></script>
+  <script src="js/scoring.js?v=202611141816"></script>
+  <script src="js/pins.js?v=202611141816"></script>
+  <script src="js/app.js?v=202611141816"></script>
+  <script src="js/alerts.js?v=202611141816"></script>
+  <script src="js/catchlog.js?v=202611141816"></script>
 </body>
 </html>

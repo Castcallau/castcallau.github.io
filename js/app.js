@@ -61,6 +61,9 @@
       state.data = Object.assign(res.data, pinRes.data); state.fetchedAt = res.at;
       if (res.marineOk === false) showError('Swell / tide data is unavailable right now – scores use weather only.');
       compute(); render();
+      // Shared spot links (?spot=gymeabay) open straight to that spot, once.
+      const want = new URLSearchParams(location.search).get('spot');
+      if (want && !load.opened && F.LOCATIONS.some(l => l.id === want)) { load.opened = true; select(want); }
     } catch (e) {
       console.error(e);
       showError(`Couldn't load the forecast (${e.message}). Check your internet connection and try again.`);
@@ -285,6 +288,7 @@
       <div class="d-buttons">
         <button class="btn" id="d-alert">🔔 Alert me for this spot</button>
         <button class="btn" id="d-log">📓 Log a catch here</button>
+        <button class="btn" id="d-share">📤 Share this spot</button>
         ${l.pin ? '<button class="btn" id="d-pin-edit">✏️ Edit pin</button><button class="btn" id="d-pin-del">🗑 Remove pin</button>' : ''}
       </div>
       ${l.pin ? `<div class="pin-brief">
@@ -350,6 +354,15 @@
     $('#detail').querySelectorAll('.win').forEach(btn => btn.onclick = () => jumpTo(Number(btn.dataset.t)));
     $('#d-alert').onclick = () => { setView('alerts'); F.alerts && F.alerts.prefill(l.id); };
     $('#d-log').onclick = () => { setView('log'); F.catchlog && F.catchlog.prefill(l.id); };
+    $('#d-share').onclick = () => {
+      const fish = h.species.filter(s => s.act >= 0.25).slice(0, 2).map(s => SP[s.id].name.replace(/ \(.+\)/, ''));
+      const when = state.offset === 0 ? 'right now' : `on ${day(h.t)} ${hr(h.t)}`;
+      const w = nextWindow(a, h.t);
+      const text = `🎣 ${l.name} is looking ${LABEL[b].toLowerCase()} (${h.score}/100) ${when}` +
+        (fish.length ? ` – ${fish.join(' and ')} on the chew` : '') + (w ? `. Best time: ${day(w.start)} ${hr(w.start)}–${hr(w.end)}` : '') + '. Check it on CastCall:';
+      // Pins only exist on this device, so share the app instead of a spot link.
+      share(`CastCall – ${l.name}`, text, l.pin ? appUrl() : appUrl() + '?spot=' + encodeURIComponent(l.id));
+    };
     if (l.pin) {
       $('#d-pin-edit').onclick = () => F.pins.edit(l.id);
       $('#d-pin-del').onclick = () => F.pins.remove(l.id);
@@ -596,6 +609,8 @@
     document.querySelectorAll('[name=water]').forEach(r => r.onchange = e => { state.water = e.target.value; render(); });
     $('#locate').onclick = locate;
     $('#refresh').onclick = () => load(true);
+    $('#share-app').onclick = () => share('CastCall – Australian fishing forecast',
+      '🎣 Check out CastCall – free fishing forecast for all of Australia. Shows the best spots right now, bite times, tides, weather and what bait to use:', appUrl());
     $('#retry').onclick = () => load(true);
     $('#list').addEventListener('click', e => { const c = e.target.closest('.card'); if (c) select(c.dataset.id); });
     document.querySelectorAll('.tab').forEach(t => t.onclick = () => setView(t.dataset.view));
@@ -641,6 +656,22 @@
   }
 
   // Shared helpers for alerts.js and catchlog.js
+  // ---------------- Sharing ----------------
+  const appUrl = () => location.origin + location.pathname.replace(/index\.html$/, '');
+  function toast(msg) {
+    const t = $('#toast'); t.textContent = msg; t.hidden = false;
+    clearTimeout(toast.timer); toast.timer = setTimeout(() => { t.hidden = true; }, 3000);
+  }
+  // Phones get the native share sheet (Messages, WhatsApp, Facebook…); computers copy the link.
+  async function share(title, text, url) {
+    if (navigator.share) {
+      try { await navigator.share({ title, text, url }); } catch (e) { /* user cancelled */ }
+      return;
+    }
+    try { await navigator.clipboard.writeText(`${text} ${url}`); toast('📋 Link copied – paste it to a mate!'); }
+    catch (e) { window.prompt('Copy this link and send it to a mate:', url); }
+  }
+
   // ---------------- Fish picker (type-ahead) ----------------
   // Common names anglers actually type.
   const NICKNAMES = {
