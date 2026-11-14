@@ -166,13 +166,35 @@
     if (typeof L === 'undefined') { $('#map').innerHTML = '<p class="empty">Map unavailable offline.</p>'; return; }
     map = L.map('map', { zoomControl: true }).setView([-32.6, 151.9], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 17, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
-    new ResizeObserver(() => map.invalidateSize()).observe($('#map'));
-    map.fitBounds(F.LOCATIONS.map(l => [l.lat, l.lon]), { padding: [20, 20] });
+    // The map can start hidden (phone list view), where it has no size and can't zoom properly.
+    // So zoom out to the whole of Australia the first time it actually has a size on screen.
+    new ResizeObserver(ensureMapFit).observe($('#map'));
+    ensureMapFit();
+    const Home = L.Control.extend({
+      onAdd() {
+        const b = L.DomUtil.create('button', 'map-home-btn');
+        b.type = 'button'; b.textContent = '🌏'; b.title = 'Zoom out to all of Australia'; b.setAttribute('aria-label', 'Zoom out to all of Australia');
+        L.DomEvent.disableClickPropagation(b);
+        b.onclick = fitAustralia;
+        return b;
+      }
+    });
+    new Home({ position: 'topleft' }).addTo(map);
     // Long-press (phone) or right-click (computer) anywhere on the map drops a pin.
     map.on('contextmenu', e => F.pins && F.pins.start(e.latlng.lat, e.latlng.lng));
     map.on('click', e => { if (F.pins && F.pins.picking) F.pins.start(e.latlng.lat, e.latlng.lng); });
     if (F.pins) F.pins.attachMap(map);
   }
+  const AUSTRALIA = [[-43.8, 112.9], [-10.5, 153.8]];
+  function fitAustralia() { if (map) map.fitBounds(AUSTRALIA, { padding: [10, 10], animate: false }); }
+  let mapFitted = false;
+  function ensureMapFit() {
+    const el = $('#map');
+    if (!map || el.clientWidth < 50 || el.clientHeight < 50) return;
+    map.invalidateSize();
+    if (!mapFitted) { mapFitted = true; fitAustralia(); }
+  }
+
   function renderMap() {
     if (!map) return;
     const vis = new Set(visibleLocations().map(l => l.id));
@@ -527,7 +549,7 @@
     for (const k of ['spots', 'species', 'alerts', 'log']) $('#view-' + k).hidden = v !== k;
     document.querySelector('.controls').hidden = v === 'alerts' || v === 'log';
     render();
-    if (v === 'spots' && map) setTimeout(() => map.invalidateSize(), 0);
+    if (v === 'spots') setTimeout(ensureMapFit, 0);
   }
 
   // ---------------- Init ----------------
@@ -561,7 +583,7 @@
     $('#map-toggle').onclick = () => {
       const on = $('#view-spots').classList.toggle('show-map');
       $('#map-toggle').textContent = on ? '☰ List' : '🗺️ Map';
-      if (on && map) setTimeout(() => map.invalidateSize(), 0);
+      if (on) { ensureMapFit(); setTimeout(ensureMapFit, 50); }
     };
 
     initMap();

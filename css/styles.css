@@ -298,6 +298,7 @@ footer .about h2 { font-size: 13px; color: var(--ink); margin: 0 0 4px; }
 /* Pins */
 .tag { display: inline-block; font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px; background: var(--win); color: var(--accent); vertical-align: middle; margin-left: 4px; }
 .pin.mine { border-radius: 50% 50% 50% 4px; outline: 2px dashed var(--accent); outline-offset: 1px; }
+.map-home-btn { width: 34px; height: 34px; font-size: 18px; line-height: 1; border-radius: 6px; border: 2px solid rgba(0,0,0,.2); background: #fff; cursor: pointer; padding: 0; }
 .map-pin-btn { font: 600 13px system-ui, sans-serif; padding: 8px 12px; border-radius: 8px; border: 0; background: var(--accent); color: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.3); cursor: pointer; }
 #map.picking, #map.picking .leaflet-interactive, #map.picking .leaflet-grab { cursor: crosshair; }
 .pin-hint { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 500; background: var(--surface); color: var(--ink); border: 1px solid var(--accent);
