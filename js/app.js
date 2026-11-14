@@ -338,6 +338,7 @@
         <p>${esc(l.notes)}</p>
         <p class="muted">📍 ${esc(l.access_info)}</p>
         <p><a href="https://www.google.com/maps/dir/?api=1&destination=${l.lat},${l.lon}" target="_blank" rel="noopener">Directions in Google Maps ↗</a> · ${rulesLink(l)}</p>
+        <p class="small"><a class="shop-near" href="${tackleNearby(l)}" target="_blank" rel="noopener">🛒 Bait &amp; tackle shops near here ↗</a></p>
       </section>
 
       <section>
@@ -417,6 +418,7 @@
       <dl>
         <dt>Best baits</dt><dd>${sp.baits.map(esc).join(' · ')}</dd>
         <dt>Lures</dt><dd>${sp.lures.map(esc).join(' · ')}</dd>
+        <dt class="shop-dt">🛒 Gear</dt><dd>${gearLinks(sp)}</dd>
         <dt>Rig</dt><dd>${esc(sp.rig)}</dd>
         <dt>Where</dt><dd>${esc(sp.habitat)}</dd>
         <dt>Size / bag</dt><dd>${sizeTxt(sp, l.state)} <span class="muted">(guide only – ${rulesLink(l)})</span></dd>
@@ -555,6 +557,7 @@
         <dl>
           <dt>Baits</dt><dd>${sp.baits.map(esc).join(' · ')}</dd>
           <dt>Lures</dt><dd>${sp.lures.map(esc).join(' · ')}</dd>
+          <dt class="shop-dt">🛒 Gear</dt><dd>${gearLinks(sp)}</dd>
           <dt>Rig</dt><dd>${esc(sp.rig)}</dd>
           <dt>Size / bag</dt><dd>${sizeTxt(sp)}</dd>
         </dl>
@@ -656,6 +659,21 @@
   }
 
   // Shared helpers for alerts.js and catchlog.js
+  // ---------------- Shop links ----------------
+  // Plain search links for now. When an affiliate program is approved, add the tracking tag here only –
+  // every gear link in the app uses this list. (Then also add rel="sponsored" and a short disclosure.)
+  const SHOPS = [
+    { name: 'BCF', url: q => `https://www.bcf.com.au/search?q=${q}` },
+    { name: 'Tackle World', url: q => `https://tackleworld.com.au/search?q=${q}` },
+    { name: 'Anaconda', url: q => `https://www.anacondastores.com/en-au/search?text=${q}` },
+    { name: 'Amazon', url: q => `https://www.amazon.com.au/s?k=${q}` }
+  ];
+  function gearLinks(sp) {
+    const q = encodeURIComponent(sp.name.replace(/ \(.+\)/, '') + ' fishing').replace(/%20/g, '+');
+    return `<span class="shop">${SHOPS.map(s => `<a href="${s.url(q)}" target="_blank" rel="noopener">${s.name}</a>`).join('<span aria-hidden="true"> · </span>')}</span>`;
+  }
+  const tackleNearby = l => `https://www.google.com/maps/search/fishing+tackle+shop/@${l.lat},${l.lon},12z`;
+
   // ---------------- Sharing ----------------
   const appUrl = () => location.origin + location.pathname.replace(/index\.html$/, '');
   function toast(msg) {
