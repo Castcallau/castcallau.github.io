@@ -14,6 +14,6 @@ $html = [regex]::Replace($html, '(src="js/[a-z\-/]+\.js)(\?v=\d+)?"', "`$1$v`"")
 [IO.File]::WriteAllText($index, $html, (New-Object Text.UTF8Encoding $false))
 
 git add -A
-git commit -q -m $Message
+git commit -q -m $Message -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 git push -q
-Write-Host "Published $v - live in about a minute at https://lapennaa07-dotcom.github.io/tideline-nsw/"
+Write-Host "Published $v - live in about a minute at https://castcallau.github.io/"

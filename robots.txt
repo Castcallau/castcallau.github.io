@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://lapennaa07-dotcom.github.io/tideline-nsw/sitemap.xml
+Sitemap: https://castcallau.github.io/sitemap.xml

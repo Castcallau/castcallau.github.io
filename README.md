@@ -2,7 +2,7 @@
 
 Ranks 110+ saltwater and freshwater spots across every Australian state (land-based and boat/kayak) by how good the fishing should be, hour by hour, for the next 2 weeks.
 You can pin any spot on the map for an exact rundown. Also has fishing alerts (browser notifications + calendar reminders) and a catch log that saves the conditions with every fish.
-Live site: https://lapennaa07-dotcom.github.io/tideline-nsw/
+Live site: https://castcallau.github.io/
 
 ## Run it
 - **Easiest:** double-click `index.html`.
