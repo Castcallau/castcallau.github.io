@@ -114,12 +114,21 @@ window.FISH = window.FISH || {};
     });
   }
 
-  function fillForm() {
-    const locs = F.LOCATIONS.slice().sort((a, b) => a.name.localeCompare(b.name));
+  function fillSpots() {
+    const locs = F.LOCATIONS.slice().sort((a, b) => a.name.localeCompare(b.name)), cur = $('#c-spot').value;
+    const opt = l => `<option value="${l.id}">${F.ui.esc(l.name)}</option>`;
     $('#c-spot').innerHTML = `<option value="">— Choose a spot —</option>` +
-      `<optgroup label="Saltwater">${locs.filter(l => l.water === 'salt').map(l => `<option value="${l.id}">${F.ui.esc(l.name)}</option>`).join('')}</optgroup>` +
-      `<optgroup label="Freshwater">${locs.filter(l => l.water === 'fresh').map(l => `<option value="${l.id}">${F.ui.esc(l.name)}</option>`).join('')}</optgroup>` +
+      (locs.some(l => l.pin) ? `<optgroup label="📌 My pins">${locs.filter(l => l.pin).map(opt).join('')}</optgroup>` : '') +
+      Object.keys(F.STATES).map(st => {
+        const ls = locs.filter(l => l.state === st && !l.pin);
+        return ls.length ? `<optgroup label="${F.STATES[st].name}">${ls.map(opt).join('')}</optgroup>` : '';
+      }).join('') +
       `<option value="other">Other spot…</option>`;
+    if (cur) $('#c-spot').value = cur;
+  }
+
+  function fillForm() {
+    fillSpots();
     $('#c-species').innerHTML = `<option value="">— Choose a fish —</option>` +
       Object.entries(SP).sort((a, b) => a[1].name.localeCompare(b[1].name)).map(([id, s]) => `<option value="${id}">${s.name}</option>`).join('') +
       `<option value="other">Other fish…</option>`;
@@ -192,7 +201,7 @@ window.FISH = window.FISH || {};
   }
 
   F.catchlog = {
-    render,
+    render, fillSpots,
     prefill(spotId) {
       $('#log-form-wrap').open = true;
       $('#c-spot').value = spotId; $('#c-spot-other').hidden = true;

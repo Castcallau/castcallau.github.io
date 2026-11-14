@@ -1,7 +1,7 @@
 {
-  "name": "CastCall NSW – Fishing Forecast",
+  "name": "CastCall – Australian Fishing Forecast",
   "short_name": "CastCall",
-  "description": "Best NSW fishing spots, times, tides, weather and bait – with alerts and a catch log.",
+  "description": "Best Australian fishing spots, times, tides, weather and bait – with alerts and a catch log.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

@@ -6,8 +6,11 @@ window.FISH = window.FISH || {};
   const NEW_MOON_REF = 947182440; // 2000-01-06 18:14 UTC (unix seconds)
   const H = 3600;
 
-  const monthFmt = new Intl.DateTimeFormat('en-AU', { timeZone: 'Australia/Sydney', month: 'numeric' });
-  const monthOf = t => Number(monthFmt.format(new Date(t * 1000))) - 1;
+  const monthFmts = {};
+  const monthOf = (t, tz = 'Australia/Sydney') => {
+    const f = monthFmts[tz] || (monthFmts[tz] = new Intl.DateTimeFormat('en-AU', { timeZone: tz, month: 'numeric' }));
+    return Number(f.format(new Date(t * 1000))) - 1;
+  };
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const lerp = (v, x0, x1, y0, y1) => y0 + (y1 - y0) * clamp((v - x0) / (x1 - x0), 0, 1);
 
@@ -90,11 +93,15 @@ window.FISH = window.FISH || {};
     harbour: () => 1, estuary: () => 1, dam: () => 1, river: () => 1
   };
 
-  function closedFor(sp, month, type) {
-    const c = sp.closed;
-    if (!c || !c.months.includes(month)) return null;
-    if (c.where === 'river' && type !== 'river' && type !== 'estuary') return null;
-    return c;
+  // Closed seasons are per state: [{ states, months, where: 'all' | 'river' | 'notdam', release }]
+  function closedFor(sp, month, type, state) {
+    for (const c of sp.closures || []) {
+      if (!c.months.includes(month) || (c.states && !c.states.includes(state))) continue;
+      if (c.where === 'river' && type !== 'river' && type !== 'estuary') continue;
+      if (c.where === 'notdam' && type === 'dam') continue;
+      return c;
+    }
+    return null;
   }
 
   // Freshwater: estimate water temp from the last 3 days of air temperature.
@@ -112,7 +119,7 @@ window.FISH = window.FISH || {};
   function speciesActivity(sp, ctx) {
     const season = sp.season[ctx.month] / 3;
     if (sp.northOf && ctx.lat < sp.northOf) return { act: 0, season: 0 };
-    const closed = closedFor(sp, ctx.month, ctx.type);
+    const closed = closedFor(sp, ctx.month, ctx.type, ctx.state);
     if (closed && !closed.release) return { act: 0, season, tempFit: 0, tod: 0, tidePref: 0, closed };
     let tempFit = 0.8;
     if (ctx.sst != null) {
@@ -221,7 +228,9 @@ window.FISH = window.FISH || {};
       : 0.26 * fTide + 0.24 * fLight + 0.22 * fWind + 0.1 * fSwell + 0.1 * fPress + 0.08 * Math.min(1, fMoon)) * fRain;
 
     // Species
-    const ctx = { month: monthOf(t), sst, wave, light: lt, tide, moon: m, type: loc.type, lat: loc.lat, riverRising };
+    if (loc.crocs) warnings.push('Crocodile country – stay well back from the water\'s edge, never wade, and don\'t clean fish at the water');
+    if (loc.noEat) warnings.push('NSW Health: don\'t eat fish or crustaceans caught west of the Sydney Harbour Bridge (dioxins) – catch and release only');
+    const ctx = { month: monthOf(t, loc.tz), sst, wave, light: lt, tide, moon: m, type: loc.type, lat: loc.lat, riverRising, state: loc.state };
     // Pest fish (carp, redfin) are still listed but ranked below the real target species.
     const rank = s => s.act * (FISH.SPECIES[s.id].pest ? 0.6 : 1);
     const species = loc.species.map(id => ({ id, ...speciesActivity(FISH.SPECIES[id], ctx) })).sort((a, b) => rank(b) - rank(a));

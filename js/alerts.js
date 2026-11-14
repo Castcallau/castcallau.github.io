@@ -6,7 +6,6 @@ window.FISH = window.FISH || {};
   const KEY = 'castcall-alerts', SEEN = 'castcall-alerts-seen';
   const $ = s => document.querySelector(s);
   const WHEN = { any: 'Any time', dawndusk: 'Dawn & dusk only', daylight: 'Daylight only', weekend: 'Weekends only' };
-  const weekdayFmt = new Intl.DateTimeFormat('en-AU', { timeZone: 'Australia/Sydney', weekday: 'short' });
 
   const load = () => { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { return []; } };
   const save = r => localStorage.setItem(KEY, JSON.stringify(r));
@@ -14,16 +13,18 @@ window.FISH = window.FISH || {};
 
   let cache = { sig: null, results: {} };
 
-  function whenOk(rule, h) {
+  function whenOk(rule, h, loc) {
     if (rule.when === 'dawndusk') return h.light.cat === 'dawn' || h.light.cat === 'dusk';
     if (rule.when === 'daylight') return h.light.cat !== 'night';
-    if (rule.when === 'weekend') { const d = weekdayFmt.format(new Date(h.t * 1000)); return d === 'Sat' || d === 'Sun'; }
+    if (rule.when === 'weekend') { const d = F.ui.day(h.t, loc.tz); return d === 'Sat' || d === 'Sun'; }
     return true;
   }
+  const inRegion = (l, region) => region === 'all' || (region.startsWith('state:') ? l.state === region.slice(6) : l.region === region);
+  const regionName = r => r === 'all' ? 'Australia' : r.startsWith('state:') ? F.STATES[r.slice(6)].name : r;
 
   function describe(rule) {
     const loc = rule.spot !== 'any' && F.ui.findLoc(rule.spot);
-    const where = loc ? loc.name : rule.region === 'all' ? 'any spot in NSW' : `any spot in ${rule.region}`;
+    const where = loc ? loc.name : `any spot in ${regionName(rule.region)}`;
     const water = !loc && rule.water && rule.water !== 'all' ? (rule.water === 'fresh' ? ' (freshwater)' : ' (saltwater)') : '';
     return `${rule.species ? SP[rule.species].name : 'Any fish'} at ${where}${water} · score ${rule.min}+ · ${WHEN[rule.when]}`;
   }
@@ -32,14 +33,14 @@ window.FISH = window.FISH || {};
   function matches(rule) {
     const st = F.ui.state, now = Date.now() / 1000;
     let locs = rule.spot !== 'any' ? [F.ui.findLoc(rule.spot)].filter(Boolean)
-      : F.LOCATIONS.filter(l => (rule.region === 'all' || l.region === rule.region) && (!rule.water || rule.water === 'all' || l.water === rule.water));
+      : F.LOCATIONS.filter(l => inRegion(l, rule.region) && (!rule.water || rule.water === 'all' || l.water === rule.water));
     if (rule.species) locs = locs.filter(l => l.species.includes(rule.species));
     const out = [];
     for (const loc of locs) {
       if (!st.data[loc.id]) continue;
       const a = F.scoring.analyse(loc, st.data[loc.id], now, { target: rule.species || '' });
       const okHour = h => {
-        if (h.score < rule.min || !whenOk(rule, h)) return false;
+        if (h.score < rule.min || !whenOk(rule, h, loc)) return false;
         const sp = rule.species && h.species.find(s => s.id === rule.species);
         return !(sp && sp.closed && !sp.closed.release);
       };
@@ -75,7 +76,10 @@ window.FISH = window.FISH || {};
   }
 
   const winKey = (r, w) => `${r.id}|${w.loc.id}|${w.start}`;
-  const winLabel = w => `${F.ui.day(w.start)} ${F.ui.hr(w.start)}–${F.ui.day(w.end) !== F.ui.day(w.start) ? F.ui.day(w.end) + ' ' : ''}${F.ui.hr(w.end)}`;
+  const winLabel = w => {
+    const tz = w.loc.tz, d0 = F.ui.day(w.start, tz), d1 = F.ui.day(w.end, tz);
+    return `${d0} ${F.ui.hr(w.start, tz)}–${d1 !== d0 ? d1 + ' ' : ''}${F.ui.hr(w.end, tz)}`;
+  };
 
   // Called after every render: notify about new matches once.
   function check() {
@@ -143,6 +147,13 @@ window.FISH = window.FISH || {};
     return 'https://calendar.google.com/calendar/render?' + p.toString();
   }
 
+  // A closure that currently blocks this alert's fish everywhere it could match.
+  function closedNow(r) {
+    if (!r.species) return null;
+    const m = new Date().getMonth();
+    return (SP[r.species].closures || []).find(c => !c.release && c.where === 'all' && c.months.includes(m)) || null;
+  }
+
   // ---------- View ----------
   function render() {
     const rules = load(), res = F.ui.state.data ? allMatches() : {};
@@ -165,8 +176,8 @@ window.FISH = window.FISH || {};
         ${!r.enabled ? '' : wins.length ? `<ul class="rule-wins">${wins.map((w, k) => `<li>
             <button class="link" data-open="${w.loc.id}" data-t="${w.peakT}"><b>${F.ui.esc(w.loc.name.split(' – ')[0])}</b> · ${winLabel(w)} · peak ${w.peak}</button>
             <span class="cal"><a href="${gcal(w)}" target="_blank" rel="noopener">Google Calendar</a> · <button class="link" data-ics="${r.id}|${k}">Phone calendar (.ics)</button></span>
-          </li>`).join('')}</ul>` : r.species && SP[r.species].closed && !SP[r.species].closed.release && SP[r.species].closed.where === 'all' && SP[r.species].closed.months.includes(new Date().getMonth())
-            ? `<p class="muted small">⛔ ${F.ui.esc(SP[r.species].closed.note)} This alert will start matching again when the season reopens.</p>`
+          </li>`).join('')}</ul>` : closedNow(r)
+            ? `<p class="muted small">⛔ ${F.ui.esc(closedNow(r).note)} This alert will start matching again when the season reopens.</p>`
             : '<p class="muted small">Nothing hits this in the next 3 days yet. CastCall will check again each time you open it.</p>'}
       </article>`;
     }).join('') : '<p class="empty">No alerts yet. Make one above – e.g. "Kingfish, any spot in Sydney, score 70+, dawn & dusk".</p>';
@@ -188,10 +199,18 @@ window.FISH = window.FISH || {};
     });
   }
 
+  function fillSpots() {
+    const locs = F.LOCATIONS.slice().sort((a, b) => a.name.localeCompare(b.name)), cur = $('#a-spot').value;
+    $('#a-spot').innerHTML = `<option value="any">Any spot</option>` + Object.keys(F.STATES).map(st => {
+      const ls = locs.filter(l => l.state === st && !l.pin);
+      return ls.length ? `<optgroup label="${F.STATES[st].name}">${ls.map(l => `<option value="${l.id}">${F.ui.esc(l.name)}</option>`).join('')}</optgroup>` : '';
+    }).join('') + (locs.some(l => l.pin) ? `<optgroup label="📌 My pins">${locs.filter(l => l.pin).map(l => `<option value="${l.id}">${F.ui.esc(l.name)}</option>`).join('')}</optgroup>` : '');
+    if (cur) $('#a-spot').value = cur;
+  }
+
   function init() {
-    const locs = F.LOCATIONS.slice().sort((a, b) => a.name.localeCompare(b.name));
-    $('#a-spot').innerHTML = `<option value="any">Any spot</option>` + locs.map(l => `<option value="${l.id}">${F.ui.esc(l.name)}</option>`).join('');
-    $('#a-region').innerHTML = `<option value="all">All NSW</option>` + F.REGIONS.map(r => `<option>${r}</option>`).join('');
+    fillSpots();
+    $('#a-region').innerHTML = F.ui.regionOptions('All Australia');
     $('#a-species').innerHTML = `<option value="">Any fish</option>` + Object.entries(SP).sort((a, b) => a[1].name.localeCompare(b[1].name)).map(([id, s]) => `<option value="${id}">${s.name}</option>`).join('');
     $('#a-when').innerHTML = Object.entries(WHEN).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
     const syncSpot = () => { const any = $('#a-spot').value === 'any'; $('#a-region-wrap').hidden = !any; $('#a-water-wrap').hidden = !any; };
@@ -210,7 +229,7 @@ window.FISH = window.FISH || {};
   }
 
   F.alerts = {
-    render, check,
+    render, check, fillSpots,
     prefill(spotId) {
       $('#a-spot').value = spotId; $('#a-spot').dispatchEvent(new Event('change'));
       $('#alert-form').scrollIntoView({ behavior: 'smooth' });

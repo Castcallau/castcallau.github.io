@@ -1,15 +1,18 @@
-// CastCall NSW – UI
+// CastCall – UI
 (function () {
   const F = window.FISH, S = F.scoring, SP = F.SPECIES;
-  const TZ = 'Australia/Sydney', H = 3600;
-  const fmtTime = new Intl.DateTimeFormat('en-AU', { timeZone: TZ, hour: 'numeric', minute: '2-digit' });
-  const fmtHour = new Intl.DateTimeFormat('en-AU', { timeZone: TZ, hour: 'numeric' });
-  const fmtDay = new Intl.DateTimeFormat('en-AU', { timeZone: TZ, weekday: 'short' });
-  const fmtH23 = new Intl.DateTimeFormat('en-AU', { timeZone: TZ, hour: 'numeric', hourCycle: 'h23' });
-  const tm = t => fmtTime.format(new Date(t * 1000)).replace(/\s/g, '').toLowerCase();
-  const hr = t => fmtHour.format(new Date(t * 1000)).replace(/\s/g, '').toLowerCase();
-  const day = t => fmtDay.format(new Date(t * 1000));
-  const h23 = t => Number(fmtH23.format(new Date(t * 1000))) % 24;
+  const DEVICE_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Australia/Sydney', H = 3600;
+  // Times are always shown in the spot's own local time (Perth, Adelaide, Darwin...).
+  // curTZ is set to the spot being drawn; pass a tz explicitly from other modules.
+  let curTZ = DEVICE_TZ;
+  const fmts = {};
+  const fmt = (tz, o) => { const k = tz + JSON.stringify(o); return fmts[k] || (fmts[k] = new Intl.DateTimeFormat('en-AU', Object.assign({ timeZone: tz }, o))); };
+  const tm = (t, tz = curTZ) => fmt(tz, { hour: 'numeric', minute: '2-digit' }).format(new Date(t * 1000)).replace(/\s/g, '').toLowerCase();
+  const hr = (t, tz = curTZ) => fmt(tz, { hour: 'numeric' }).format(new Date(t * 1000)).replace(/\s/g, '').toLowerCase();
+  const day = (t, tz = curTZ) => fmt(tz, { weekday: 'short' }).format(new Date(t * 1000));
+  const h23 = (t, tz = curTZ) => Number(fmt(tz, { hour: 'numeric', hourCycle: 'h23' }).format(new Date(t * 1000))) % 24;
+  const tzName = tz => (fmt(tz, { timeZoneName: 'short' }).formatToParts(new Date()).find(p => p.type === 'timeZoneName') || {}).value || tz;
+  const rulesLink = l => { const st = F.STATES[l.state]; return `<a href="${st.rules}" target="_blank" rel="noopener">${st.agency} rules ↗</a>`; };
   const $ = s => document.querySelector(s);
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -51,8 +54,11 @@
     $('#status').textContent = 'Loading live forecast…';
     $('#error').hidden = true;
     try {
-      const res = await F.api.load(F.LOCATIONS, force);
-      state.data = res.data; state.fetchedAt = res.at;
+      const [res, pinRes] = await Promise.all([
+        F.api.load(F.LOCATIONS.filter(l => !l.pin), force),
+        F.api.load(F.LOCATIONS.filter(l => l.pin), force, 'fish-pins-cache').catch(() => ({ data: {} }))
+      ]);
+      state.data = Object.assign(res.data, pinRes.data); state.fetchedAt = res.at;
       if (res.marineOk === false) showError('Swell / tide data is unavailable right now – scores use weather only.');
       compute(); render();
     } catch (e) {
@@ -62,6 +68,15 @@
     }
   }
   function showError(msg) { $('#error').hidden = false; $('#error-msg').textContent = msg; }
+
+  // Fetch just the pinned spots (after adding/editing a pin) without reloading everything.
+  async function loadPins() {
+    if (!state.data) return;
+    const pins = F.LOCATIONS.filter(l => l.pin);
+    const res = await F.api.load(pins, true, 'fish-pins-cache');
+    Object.assign(state.data, res.data);
+    compute(); render();
+  }
 
   function compute() {
     const now = Date.now() / 1000;
@@ -82,12 +97,13 @@
 
   function visibleLocations() {
     const q = state.search.trim().toLowerCase();
+    const r = state.region;
     let list = F.LOCATIONS.filter(l => state.analyses[l.id]
-      && (state.region === 'all' || (state.region === 'favs' ? state.favs.has(l.id) : l.region === state.region))
+      && (r === 'all' || (r === 'favs' ? state.favs.has(l.id) : r === 'pins' ? l.pin : r.startsWith('state:') ? l.state === r.slice(6) : l.region === r))
       && (state.access === 'all' || l.access.includes(state.access))
       && (state.water === 'all' || l.water === state.water)
       && (!state.target || l.species.includes(state.target))
-      && (!q || (l.name + ' ' + l.region + ' ' + l.species.map(s => SP[s].name).join(' ')).toLowerCase().includes(q)));
+      && (!q || (l.name + ' ' + l.region + ' ' + l.state + ' ' + F.STATES[l.state].name + ' ' + l.species.map(s => SP[s].name).join(' ')).toLowerCase().includes(q)));
     if (state.sort === 'distance' && state.userPos) list.sort((a, b) => distKm(state.userPos, [a.lat, a.lon]) - distKm(state.userPos, [b.lat, b.lon]));
     else if (state.sort === 'name') list.sort((a, b) => a.name.localeCompare(b.name));
     else list.sort((a, b) => hourOf(b.id).score - hourOf(a.id).score);
@@ -109,7 +125,7 @@
     const any = Object.values(state.analyses)[0];
     if (!any) return;
     const h = any.hours[state.offset];
-    $('#time-label').innerHTML = state.offset === 0 ? `<b>Now</b> · ${day(h.t)} ${hr(h.t)}` : `<b>${day(h.t)} ${hr(h.t)}</b> · in ${state.offset} h`;
+    $('#time-label').innerHTML = state.offset === 0 ? `<b>Now</b> · ${day(h.t, DEVICE_TZ)} ${hr(h.t, DEVICE_TZ)}` : `<b>${day(h.t, DEVICE_TZ)} ${hr(h.t, DEVICE_TZ)}</b> · in ${state.offset} h <span class="muted small">(your time)</span>`;
   }
 
   function nextWindow(a, t) { return a.windows.find(w => w.end > t); }
@@ -119,6 +135,7 @@
     $('#count').textContent = `${list.length} spot${list.length === 1 ? '' : 's'}`;
     if (!list.length) { $('#list').innerHTML = '<p class="empty">No spots match these filters.</p>'; return; }
     $('#list').innerHTML = list.map((l, rank) => {
+      curTZ = l.tz;
       const a = state.analyses[l.id], h = hourOf(l.id), b = bucket(h.score);
       const top = rank === 0 && state.sort === 'score' && list.length > 1;
       const fish = h.species.filter(s => s.act >= 0.25).slice(0, 3).map(s => SP[s.id].name.replace(/ \(.+\)/, ''));
@@ -129,8 +146,8 @@
       return `<button class="card${state.selected === l.id ? ' active' : ''}${top ? ' top-pick' : ''}" data-id="${l.id}">
         <div class="score s${b}" aria-label="Score ${h.score} out of 100, ${LABEL[b]}"><span>${h.score}</span><small>${LABEL[b]}</small></div>
         <div class="card-body">
-          <div class="card-title">${state.favs.has(l.id) ? '★ ' : ''}${esc(l.name)}</div>
-          <div class="card-sub">${esc(l.region)} · ${TYPE[l.type]} · ${l.access.map(x => x === 'land' ? 'Land' : 'Boat').join(' / ')}${dist}</div>
+          <div class="card-title">${l.pin ? '📌 ' : ''}${state.favs.has(l.id) ? '★ ' : ''}${esc(l.name)}${l.local ? ' <span class="tag">Local spot</span>' : ''}</div>
+          <div class="card-sub">${esc(l.region)}, ${l.state} · ${TYPE[l.type]} · ${l.access.map(x => x === 'land' ? 'Land' : 'Boat').join(' / ')}${dist}</div>
           <div class="card-cond">
             <span title="Wind">${arrow(h.windDir)} ${Math.round(h.wind)} km/h</span>
             ${h.fresh ? '<span title="Freshwater">💧 Fresh</span>' : `<span title="Swell">🌊 ${n1(h.wave)} m</span>`}
@@ -149,20 +166,23 @@
     if (typeof L === 'undefined') { $('#map').innerHTML = '<p class="empty">Map unavailable offline.</p>'; return; }
     map = L.map('map', { zoomControl: true }).setView([-32.6, 151.9], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 17, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
-    for (const l of F.LOCATIONS) {
-      markers[l.id] = L.marker([l.lat, l.lon], { title: l.name }).addTo(map).on('click', () => select(l.id));
-    }
     new ResizeObserver(() => map.invalidateSize()).observe($('#map'));
-    map.fitBounds(F.LOCATIONS.map(l => [l.lat, l.lon]), { padding: [30, 30] });
+    map.fitBounds(F.LOCATIONS.map(l => [l.lat, l.lon]), { padding: [20, 20] });
+    // Long-press (phone) or right-click (computer) anywhere on the map drops a pin.
+    map.on('contextmenu', e => F.pins && F.pins.start(e.latlng.lat, e.latlng.lng));
+    map.on('click', e => { if (F.pins && F.pins.picking) F.pins.start(e.latlng.lat, e.latlng.lng); });
+    if (F.pins) F.pins.attachMap(map);
   }
   function renderMap() {
     if (!map) return;
     const vis = new Set(visibleLocations().map(l => l.id));
+    for (const id of Object.keys(markers)) if (!F.LOCATIONS.some(l => l.id === id)) { map.removeLayer(markers[id]); delete markers[id]; }
     for (const l of F.LOCATIONS) {
+      if (!markers[l.id]) markers[l.id] = L.marker([l.lat, l.lon], { title: l.name }).on('click', () => select(l.id));
       const m = markers[l.id], h = hourOf(l.id);
       if (!vis.has(l.id) || !h) { if (map.hasLayer(m)) map.removeLayer(m); continue; }
       if (!map.hasLayer(m)) m.addTo(map);
-      m.setIcon(L.divIcon({ className: '', html: `<div class="pin s${bucket(h.score)}${state.selected === l.id ? ' sel' : ''}">${h.score}</div>`, iconSize: [32, 32], iconAnchor: [16, 16] }));
+      m.setIcon(L.divIcon({ className: '', html: `<div class="pin s${bucket(h.score)}${state.selected === l.id ? ' sel' : ''}${l.pin ? ' mine' : ''}">${h.score}</div>`, iconSize: [32, 32], iconAnchor: [16, 16] }));
       m.setZIndexOffset(h.score * 10);
     }
   }
@@ -189,9 +209,11 @@
 
   // ---------------- Detail ----------------
   function renderDetail() {
-    const l = F.LOCATIONS.find(x => x.id === state.selected), a = state.analyses[l.id];
+    const l = F.LOCATIONS.find(x => x.id === state.selected), a = l && state.analyses[l.id];
     if (!a) return;
+    curTZ = l.tz;
     const h = hourOf(l.id), b = bucket(h.score), [icon, wdesc] = wx(h.code);
+    const near = l.pin && F.pins ? F.pins.nearest(l) : null;
     const pos = h.reasons.filter(r => r.g > 0), neg = h.reasons.filter(r => r.g < 0), neu = h.reasons.filter(r => r.g === 0);
     const pressure = state.data[l.id].pressure[h.i];
     $('#detail').hidden = false;
@@ -200,8 +222,9 @@
     $('#detail').innerHTML = `
       <div class="d-head">
         <div>
-          <h2>${esc(l.name)}</h2>
-          <div class="muted">${esc(l.region)} · ${TYPE[l.type]} · ${l.access.map(x => x === 'land' ? 'Land-based' : 'Boat / kayak').join(', ')}</div>
+          <h2>${l.pin ? '📌 ' : ''}${esc(l.name)}</h2>
+          <div class="muted">${esc(l.region)}, ${F.STATES[l.state].name} · ${TYPE[l.type]} · ${l.access.map(x => x === 'land' ? 'Land-based' : 'Boat / kayak').join(', ')}</div>
+          ${l.tz !== DEVICE_TZ ? `<div class="muted small">🕒 Times shown in local time here (${tzName(l.tz)})</div>` : ''}
         </div>
         <div class="d-actions">
           <button class="icon-btn" id="fav" aria-pressed="${state.favs.has(l.id)}" title="Save spot">${state.favs.has(l.id) ? '★' : '☆'}</button>
@@ -225,7 +248,13 @@
       <div class="d-buttons">
         <button class="btn" id="d-alert">🔔 Alert me for this spot</button>
         <button class="btn" id="d-log">📓 Log a catch here</button>
+        ${l.pin ? '<button class="btn" id="d-pin-edit">✏️ Edit pin</button><button class="btn" id="d-pin-del">🗑 Remove pin</button>' : ''}
       </div>
+      ${l.pin ? `<div class="pin-brief">
+        <b>Your exact spot rundown</b> – live weather, swell, tide and water temperature for the point you pinned
+        (${l.lat.toFixed(4)}, ${l.lon.toFixed(4)}), with fish picked from the nearby spots below.
+        ${near ? `<div class="muted small">Nearest CastCall spot: <button class="link" data-goto="${near.l.id}">${esc(near.l.name)}</button> (${near.km < 1 ? '<1' : Math.round(near.km)} km away)</div>` : ''}
+      </div>` : ''}
 
       <section>
         <h3>Best times – next 3 days</h3>
@@ -260,14 +289,14 @@
 
       <section>
         <h3>Target species ${state.offset === 0 ? 'right now' : 'at this time'}</h3>
-        <div class="species">${h.species.map((s, k) => speciesCard(s, h, k < 2)).join('')}</div>
+        <div class="species">${h.species.map((s, k) => speciesCard(s, h, k < 2, l)).join('')}</div>
       </section>
 
       <section>
         <h3>About this spot</h3>
         <p>${esc(l.notes)}</p>
         <p class="muted">📍 ${esc(l.access_info)}</p>
-        <p><a href="https://www.google.com/maps/dir/?api=1&destination=${l.lat},${l.lon}" target="_blank" rel="noopener">Directions in Google Maps ↗</a></p>
+        <p><a href="https://www.google.com/maps/dir/?api=1&destination=${l.lat},${l.lon}" target="_blank" rel="noopener">Directions in Google Maps ↗</a> · ${rulesLink(l)}</p>
       </section>
 
       <section>
@@ -284,11 +313,18 @@
     $('#detail').querySelectorAll('.win').forEach(btn => btn.onclick = () => jumpTo(Number(btn.dataset.t)));
     $('#d-alert').onclick = () => { setView('alerts'); F.alerts && F.alerts.prefill(l.id); };
     $('#d-log').onclick = () => { setView('log'); F.catchlog && F.catchlog.prefill(l.id); };
+    if (l.pin) {
+      $('#d-pin-edit').onclick = () => F.pins.edit(l.id);
+      $('#d-pin-del').onclick = () => F.pins.remove(l.id);
+      $('#detail').querySelectorAll('[data-goto]').forEach(b => b.onclick = () => select(b.dataset.goto));
+    }
     bindChart('#score-chart', k => {
+      curTZ = l.tz;
       const x = a.hours[k];
       return `<b>${day(x.t)} ${hr(x.t)}</b><br>Score ${x.score} · ${LABEL[bucket(x.score)]}<br>${arrow(x.windDir)} ${Math.round(x.wind)} km/h · 🌊 ${n1(x.wave)} m<br>${x.tide ? x.tide.state + ' tide' : ''}`;
     }, k => { state.offset = k; $('#time').value = k; render(); });
     bindChart('#tide-chart', k => {
+      curTZ = l.tz;
       const x = a.hours[k], v = state.data[l.id].sea[x.i];
       return `<b>${day(x.t)} ${hr(x.t)}</b><br>${v == null ? 'no data' : v.toFixed(2) + ' m'}${x.tide ? ' · ' + x.tide.state : ''}`;
     }, k => { state.offset = k; $('#time').value = k; render(); });
@@ -307,7 +343,7 @@
     if (k >= 0) { state.offset = k; $('#time').value = k; render(); }
   }
 
-  function speciesCard(s, h, open) {
+  function speciesCard(s, h, open, l) {
     const sp = SP[s.id];
     const chips = [];
     if (s.closed) chips.push(`<span class="chip bad">⛔ ${s.closed.release ? 'Catch & release only' : 'Closed season'}</span>`);
@@ -333,16 +369,19 @@
         <dt>Lures</dt><dd>${sp.lures.map(esc).join(' · ')}</dd>
         <dt>Rig</dt><dd>${esc(sp.rig)}</dd>
         <dt>Where</dt><dd>${esc(sp.habitat)}</dd>
-        <dt>Size / bag</dt><dd>${sizeTxt(sp)} <span class="muted">(guide only – verify with NSW DPI)</span></dd>
+        <dt>Size / bag</dt><dd>${sizeTxt(sp, l.state)} <span class="muted">(guide only – ${rulesLink(l)})</span></dd>
       </dl>
       <p class="tip">💡 ${esc(sp.tips)}</p>
     </details>`;
   }
 
-  function sizeTxt(sp) {
-    if (!sp.size) return 'Check current NSW DPI rules';
+  // Stored sizes/bags are NSW figures; other states have their own rules.
+  function sizeTxt(sp, st) {
+    if (sp.pest) return 'Pest – no size or bag limit, don\'t release alive';
+    if (st && st !== 'NSW') return `Check ${F.STATES[st].agency} rules – limits differ between states`;
+    if (!sp.size) return 'Check current rules';
     if (sp.size === 'No limit') return 'No size or bag limit';
-    return `${/^\d+ cm$/.test(sp.size) ? 'Min ' : ''}${sp.size}, bag ${sp.bag}`;
+    return `${st ? '' : 'NSW: '}${/^\d+ cm$/.test(sp.size) ? 'Min ' : ''}${sp.size}, bag ${sp.bag}`;
   }
 
   function hourlyTable(a) {
@@ -469,7 +508,7 @@
           <dt>Rig</dt><dd>${esc(sp.rig)}</dd>
           <dt>Size / bag</dt><dd>${sizeTxt(sp)}</dd>
         </dl>
-        ${sp.closed ? `<p class="closed-box small">⛔ ${esc(sp.closed.note)}</p>` : ''}
+        ${(sp.closures || []).map(c => `<p class="closed-box small">⛔ ${esc(c.note)}</p>`).join('')}
         <p class="tip">💡 ${esc(sp.tips)}</p>
         ${spots.length ? `<div class="sp-spots"><b>Best spots ${state.offset === 0 ? 'now' : 'at selected time'}:</b> ${spots.map(x => `<button class="link" data-goto="${x.l.id}">${esc(x.l.name.split(' – ')[0])} (${x.score})</button>`).join(', ')}</div>` : ''}
       </article>`;
@@ -493,7 +532,8 @@
 
   // ---------------- Init ----------------
   function init() {
-    $('#region').innerHTML = `<option value="all">All NSW</option><option value="favs">★ Saved spots</option>` + F.REGIONS.map(r => `<option>${r}</option>`).join('');
+    $('#region').innerHTML = regionOptions('All Australia', true);
+    $('#region').value = state.region;
     $('#target').innerHTML = `<option value="">Any species</option>` + Object.entries(SP).sort((a, b) => a[1].name.localeCompare(b[1].name)).map(([id, s]) => `<option value="${id}">${s.name}</option>`).join('');
 
     $('#time').oninput = e => { state.offset = Number(e.target.value); render(); };
@@ -550,8 +590,18 @@
   }
 
   // Shared helpers for alerts.js and catchlog.js
-  F.ui = { state, tm, hr, day, esc, select, setView, render, bucket, LABEL, TYPE, wx, arrow, n1, sizeTxt,
-    jumpTo, showError, findLoc: id => F.LOCATIONS.find(l => l.id === id) };
+  // State → region dropdown (shared with alerts). Values: 'all', 'favs', 'pins', 'state:XX' or a region name.
+  function regionOptions(allLabel, extras) {
+    return `<option value="all">${allLabel}</option>` +
+      (extras ? `<option value="favs">★ Saved spots</option><option value="pins">📌 My pins</option>` : '') +
+      Object.entries(F.STATES).map(([st, s]) => {
+        const regions = F.REGIONS_BY_STATE[st] || [];
+        return `<optgroup label="${s.name}"><option value="state:${st}">All ${st}</option>${regions.length > 1 ? regions.map(r => `<option>${esc(r)}</option>`).join('') : ''}</optgroup>`;
+      }).join('');
+  }
+
+  F.ui = { state, tm, hr, day, esc, select, setView, render, bucket, LABEL, TYPE, wx, arrow, n1, sizeTxt, regionOptions,
+    jumpTo, showError, loadPins, closeDetail, findLoc: id => F.LOCATIONS.find(l => l.id === id), get map() { return map; } };
 
   document.addEventListener('DOMContentLoaded', init);
 })();

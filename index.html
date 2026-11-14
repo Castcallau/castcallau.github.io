@@ -3,15 +3,15 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>CastCall NSW – Fishing Forecast: Best Fishing Spots, Times, Tides &amp; Bait</title>
-  <meta name="description" content="CastCall is a free NSW fishing forecast. See the best saltwater and freshwater fishing spots right now, the best times to go, tides, wind, swell, water temperature, what's biting and what bait to use. Set fishing alerts and keep a catch log.">
-  <meta name="keywords" content="CastCall, NSW fishing forecast, best fishing times, fishing spots Sydney, tide times NSW, fishing bait guide, land based fishing NSW, freshwater fishing NSW, bass, Murray cod, trout, kingfish, snapper, flathead, bream, mulloway, catch log">
+  <title>CastCall – Australian Fishing Forecast: Best Fishing Spots, Times, Tides &amp; Bait</title>
+  <meta name="description" content="CastCall is a free Australian fishing forecast. See the best saltwater and freshwater fishing spots in every state right now, the best times to go, tides, wind, swell, water temperature, what's biting and what bait to use. Set fishing alerts and keep a catch log.">
+  <meta name="keywords" content="CastCall, Australian fishing forecast, NSW fishing forecast, QLD fishing, VIC fishing, WA fishing, SA fishing, TAS fishing, NT fishing, barramundi, King George whiting, best fishing times, fishing spots Sydney, tide times NSW, fishing bait guide, land based fishing NSW, freshwater fishing NSW, bass, Murray cod, trout, kingfish, snapper, flathead, bream, mulloway, catch log">
   <meta name="robots" content="index, follow">
   <meta name="google-site-verification" content="HvLGcTLzh9J3gDMG8QleYWVFUOdQAoCgFxzDEAYW4y4" />
   <meta name="theme-color" content="#104281">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="CastCall NSW – Fishing Forecast">
-  <meta property="og:description" content="The best NSW fishing spots right now – salt and fresh – with the best times, tides, weather, what's biting and the bait to use.">
+  <meta property="og:title" content="CastCall – Australian Fishing Forecast">
+  <meta property="og:description" content="The best fishing spots in Australia right now – salt and fresh – with the best times, tides, weather, what's biting and the bait to use.">
   <link rel="canonical" href="https://lapennaa07-dotcom.github.io/tideline-nsw/">
   <meta property="og:url" content="https://lapennaa07-dotcom.github.io/tideline-nsw/">
   <meta property="og:image" content="https://lapennaa07-dotcom.github.io/tideline-nsw/icon.svg">
@@ -23,13 +23,13 @@
   {
     "@context": "https://schema.org",
     "@type": "WebApplication",
-    "name": "CastCall NSW",
+    "name": "CastCall",
     "url": "https://lapennaa07-dotcom.github.io/tideline-nsw/",
-    "alternateName": ["CastCall", "CastCall Fishing Forecast"],
-    "description": "Free NSW fishing forecast showing the best saltwater and freshwater fishing spots, best times, tides, weather, target species and bait, with fishing alerts and a catch log.",
+    "alternateName": ["CastCall Australia", "CastCall NSW", "CastCall Fishing Forecast"],
+    "description": "Free Australian fishing forecast showing the best saltwater and freshwater fishing spots, best times, tides, weather, target species and bait, with fishing alerts and a catch log.",
     "applicationCategory": "SportsApplication",
     "operatingSystem": "Any",
-    "areaServed": "New South Wales, Australia",
+    "areaServed": "Australia",
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "AUD" }
   }
   </script>
@@ -40,7 +40,7 @@
   <header class="top">
     <div class="brand">
       <img class="logo" src="icon.svg" alt="" width="34" height="34">
-      <div><h1>CastCall <span class="muted">NSW</span></h1><div class="muted small" id="status">Loading…</div></div>
+      <div><h1>CastCall <span class="muted">AU</span></h1><div class="muted small" id="status">Loading…</div></div>
     </div>
     <nav class="tabs" role="tablist" aria-label="Sections">
       <button class="tab" role="tab" data-view="spots" aria-selected="true"><span class="ti" aria-hidden="true">📍</span><span>Spots</span></button>
@@ -89,24 +89,37 @@
 
   <main id="view-spots" class="spots">
     <aside class="list-pane">
-      <div class="list-head"><b id="count"></b><span class="muted small">Ranked for the selected time</span></div>
+      <div class="list-head"><b id="count"></b><button class="btn small" id="pin-start" type="button">📌 Pin a spot</button></div>
       <div class="scroll list-scroll">
         <div id="list" class="list">
           <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
         </div>
       <footer>
         <section class="about">
-          <h2>CastCall – free NSW fishing forecast: best spots, times, tides and bait</h2>
-          <p>CastCall is a free fishing forecast for New South Wales. It scores 55 saltwater and freshwater fishing spots every hour for the next three days, using tides, wind, swell, water temperature, barometric pressure, rain and river flow, sunrise and sunset, and the moon. It ranks the best spots, tells you the best time to go, sends fishing alerts and keeps a catch log.</p>
-          <p>Saltwater spots include Botany Bay, La Perouse, Brighton-le-Sands, Cronulla and Bate Bay, Sydney Harbour, Watsons Bay, Manly, Port Hacking, the Hawkesbury River, Long Reef, Pittwater, Brisbane Water, The Entrance, Norah Head, Lake Macquarie, Newcastle, Port Stephens, Shoal Bay, Crowdy Bay, Forster, Port Macquarie, South West Rocks, Coffs Harbour, Yamba, Ballina, Byron Bay, Wollongong, Bass Point, Jervis Bay, Batemans Bay, Narooma, Montague Island, Merimbula and Eden.
-            Freshwater spots include the Nepean River, Lake Lyell, Lake Burrendong, Windamere Dam, Lake St Clair, Glenbawn Dam, the Clarence River, Lake Keepit, Copeton Dam, Lake Eucumbene, Lake Jindabyne, the Thredbo River, Burrinjuck Dam and Lake Mulwala.</p>
-          <p>Each spot shows which fish are biting – bream, dusky flathead, whiting, tailor, Australian salmon, mulloway (jewfish), luderick, yellowtail kingfish, snapper, squid, trevally, drummer, mahi mahi, mackerel, bonito, tiger flathead, Australian bass, golden perch (yellowbelly), Murray cod, trout, redfin and carp – plus the best bait, lures and rigs for each.</p>
+          <h2>CastCall – free Australian fishing forecast: best spots, times, tides and bait</h2>
+          <p>CastCall is a free fishing forecast for all of Australia. It scores over 100 saltwater and freshwater fishing spots in every state every hour for the next three days, using tides, wind, swell, water temperature, barometric pressure, rain and river flow, sunrise and sunset, and the moon. Pin any spot on the map for an exact rundown. It ranks the best spots, tells you the best time to go, sends fishing alerts and keeps a catch log.</p>
+          <p>Queensland: Gold Coast Seaway, Moreton Bay, Redcliffe, Noosa, K'gari (Fraser Island), Hervey Bay, the Whitsundays, Townsville, Cairns, the Great Barrier Reef and Lake Tinaroo.
+            Northern Territory: Darwin Harbour, the Mary River, the Daly River and Dundee Beach.
+            Western Australia: the Swan River, Perth beaches, Rottnest Island, Mandurah, Busselton Jetty, Albany, Esperance, Ningaloo and Broome.
+            South Australia: Adelaide jetties, Port Lincoln, Kangaroo Island, Edithburgh, the Coorong and the Murray at Renmark.
+            Victoria: St Kilda Pier, Port Phillip Bay, Western Port, Lakes Entrance, Mallacoota, Portland and Lake Eildon.
+            Tasmania: the Derwent, Eaglehawk Neck, St Helens, the Tamar, Great Lake and Arthurs Lake. ACT: Lake Burley Griffin.</p>
+          <p>New South Wales saltwater spots include Gymea Bay Baths, Yowie Bay, Lilli Pilli, Bundeena, Cronulla, Captain Cook Bridge, Tom Ugly's Bridge, Balmoral, Rose Bay, Ben Buckler, Homebush Bay, Terrigal, Kiama, Botany Bay, La Perouse, Brighton-le-Sands, Bate Bay, Sydney Harbour, Watsons Bay, Manly, Port Hacking, the Hawkesbury River, Long Reef, Pittwater, Brisbane Water, The Entrance, Norah Head, Lake Macquarie, Newcastle, Port Stephens, Shoal Bay, Crowdy Bay, Forster, Port Macquarie, South West Rocks, Coffs Harbour, Yamba, Ballina, Byron Bay, Wollongong, Bass Point, Jervis Bay, Batemans Bay, Narooma, Montague Island, Merimbula and Eden.
+            NSW freshwater spots include the Nepean River, Lake Lyell, Lake Burrendong, Windamere Dam, Lake St Clair, Glenbawn Dam, the Clarence River, Lake Keepit, Copeton Dam, Lake Eucumbene, Lake Jindabyne, the Thredbo River, Burrinjuck Dam and Lake Mulwala.</p>
+          <p>Each spot shows which fish are biting – bream, dusky flathead, whiting, tailor, Australian salmon, mulloway (jewfish), luderick, yellowtail kingfish, snapper, squid, trevally, drummer, mahi mahi, mackerel, bonito, tiger flathead, barramundi, mangrove jack, coral trout, threadfin salmon, queenfish, King George whiting, Australian herring (tommy ruff), black bream, WA dhufish, sand flathead, garfish, Australian bass, golden perch (yellowbelly), Murray cod, trout, redfin and carp – plus the best bait, lures and rigs for each.</p>
         </section>
-        <p><b>Stay safe:</b> always check conditions yourself before fishing. Wear a lifejacket on rocks and in boats – it is the law at many NSW rock fishing spots and on small boats.
-          Scores are an estimate from forecast models, not a guarantee. A NSW recreational fishing licence is needed in both salt and fresh water.</p>
+        <p><b>Stay safe:</b> always check conditions yourself before fishing. Wear a lifejacket on rocks and in boats – it is the law at many rock fishing spots and on small boats. In the north, stay well back from the water: saltwater crocodiles live in rivers, estuaries and the sea.
+          Scores are an estimate from forecast models, not a guarantee. Licences, size and bag limits, and closed seasons are different in every state.</p>
         <p>
-          <a href="https://www.dpi.nsw.gov.au/fishing/recreational/fishing-rules-and-regs" target="_blank" rel="noopener">NSW DPI fishing rules, bag limits &amp; closed seasons ↗</a> ·
-          <a href="http://www.bom.gov.au/nsw/forecasts/marine.shtml" target="_blank" rel="noopener">BOM marine forecasts &amp; warnings ↗</a> ·
+          Fishing rules:
+          <a href="https://www.dpi.nsw.gov.au/fishing/recreational/fishing-rules-and-regs" target="_blank" rel="noopener">NSW</a> ·
+          <a href="https://www.qld.gov.au/recreation/activities/boating-fishing/rec-fishing" target="_blank" rel="noopener">QLD</a> ·
+          <a href="https://vfa.vic.gov.au/recreational-fishing" target="_blank" rel="noopener">VIC</a> ·
+          <a href="https://fishing.tas.gov.au" target="_blank" rel="noopener">TAS</a> ·
+          <a href="https://www.pir.sa.gov.au/recreational_fishing" target="_blank" rel="noopener">SA</a> ·
+          <a href="https://www.fish.wa.gov.au/Fishing-and-Aquaculture/Recreational-Fishing" target="_blank" rel="noopener">WA</a> ·
+          <a href="https://nt.gov.au/marine/recreational-fishing" target="_blank" rel="noopener">NT</a> ·
+          <a href="http://www.bom.gov.au/marine/" target="_blank" rel="noopener">BOM marine forecasts &amp; warnings ↗</a> ·
           <a href="http://www.bom.gov.au/australia/tides/" target="_blank" rel="noopener">BOM tide tables ↗</a> ·
           Weather, swell &amp; tide data: <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a>
         </p>
@@ -115,6 +128,7 @@
     </aside>
     <div class="map-pane">
       <div id="map"></div>
+      <div class="pin-hint" id="pin-hint" hidden>📌 Tap the map exactly where you want to fish <button class="btn small" id="pin-hint-cancel" type="button">Cancel</button></div>
     </div>
     <aside id="detail" class="detail scroll" hidden></aside>
     <button class="fab" id="map-toggle" type="button">🗺️ Map</button>
@@ -179,13 +193,45 @@
     <div id="species-grid"></div>
   </main>
 
+  <dialog id="pin-dialog" class="pin-dialog">
+    <form id="pin-form">
+      <h2 id="p-title">📌 New pinned spot</h2>
+      <p class="muted small" id="p-coords"></p>
+      <button class="btn small" type="button" id="p-here">📍 Use where I am now</button>
+      <div class="form-grid">
+        <label class="wide">Name<input type="text" id="p-name" maxlength="60" required></label>
+        <fieldset class="seg wide" aria-label="Water">
+          <label><input type="radio" name="p-water" value="salt"><span>🌊 Saltwater</span></label>
+          <label><input type="radio" name="p-water" value="fresh"><span>💧 Freshwater</span></label>
+        </fieldset>
+        <label>What kind of spot?<select id="p-type"></select></label>
+        <label id="p-faces-wrap">Which way does the water face?<select id="p-faces"></select></label>
+        <div class="wide access-row">
+          <label class="chk"><input type="checkbox" name="p-access" value="land"> Land-based</label>
+          <label class="chk"><input type="checkbox" name="p-access" value="boat"> Boat / kayak</label>
+        </div>
+        <div class="wide">
+          <div class="small muted">Fish you're after (ticked ones were picked from nearby spots):</div>
+          <div class="chk-grid" id="p-species"></div>
+        </div>
+        <label class="wide">Notes (optional)<textarea id="p-notes" rows="2" placeholder="e.g. the rock ledge left of the baths, fish the run-in tide"></textarea></label>
+      </div>
+      <div class="dialog-actions">
+        <button class="btn" type="button" id="p-cancel">Cancel</button>
+        <button class="btn primary" type="submit">Save pin & get rundown</button>
+      </div>
+    </form>
+  </dialog>
+
   <div id="tooltip" class="tooltip" hidden></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="js/data/species.js"></script>
   <script src="js/data/locations.js"></script>
+  <script src="js/data/locations-au.js"></script>
   <script src="js/api.js"></script>
   <script src="js/scoring.js"></script>
+  <script src="js/pins.js"></script>
   <script src="js/app.js"></script>
   <script src="js/alerts.js"></script>
   <script src="js/catchlog.js"></script>

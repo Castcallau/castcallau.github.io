@@ -183,13 +183,139 @@ FISH.SPECIES = {
     tips: 'Drift over sand edges near reef. Good fish for families on calm offshore days.'
   },
 
+  // ---------------- Tropical north (QLD, NT, northern WA) ----------------
+  barramundi: {
+    name: 'Barramundi', sci: 'Lates calcarifer',
+    season: [3,3,3,2,2,1,1,1,2,3,3,3], temp: [24, 32],
+    tod: { dawn: 0.9, day: 0.5, dusk: 1, night: 0.8 }, tide: 'change', rain: true, moon: true,
+    closures: [{ states: ['QLD'], months: [10, 11, 0], where: 'notdam', note: 'Queensland east coast barramundi closed season: 12 noon 1 Nov – 12 noon 1 Feb. Check QLD Fisheries rules.' }],
+    habitat: 'Tidal rivers, creek mouths, mangrove snags, rock bars and floodplain run-offs across northern Australia.',
+    baits: ['Live mullet', 'Live prawns', 'Live cherabin (freshwater prawns)'],
+    lures: ['Shallow-diving hardbodies (gold and natural colours)', '4–6" paddle-tail soft plastics', 'Soft vibes worked along drop-offs'],
+    rig: '30–50lb braid, 40–60lb leader, 4/0–6/0 hooks for live bait. Cast lures tight to snags and roll them slowly.',
+    size: null, bag: null,
+    tips: 'Fish the run-out tide where creeks and drains empty into the main river. ⚠️ Crocodile country – stay well back from the edge and never clean fish at the water.'
+  },
+  mangrovejack: {
+    name: 'Mangrove Jack', sci: 'Lutjanus argentimaculatus',
+    season: [3,3,3,2,1,0,0,0,1,2,3,3], temp: [24, 31],
+    tod: { dawn: 0.9, day: 0.5, dusk: 1, night: 0.9 }, tide: 'change',
+    habitat: 'Mangrove snags, rock walls, bridge pylons and rock bars in warm estuaries.',
+    baits: ['Live mullet / herring', 'Live prawns', 'Fresh mullet or squid strips'],
+    lures: ['Shallow hardbodies cast tight to snags', '3–4" soft plastic prawns and shads', 'Surface walkers at dawn and dusk'],
+    rig: 'Heavy and short: 30–50lb leader, 3/0–5/0 hook, drag locked – they go straight back into the snag.',
+    size: null, bag: null,
+    tips: 'Hot, humid summer evenings before a storm are prime. Skip lures right into the shade of the snags.'
+  },
+  coraltrout: {
+    name: 'Coral Trout', sci: 'Plectropomus leopardus',
+    season: [2,2,2,3,3,3,3,3,3,3,2,2], temp: [22, 29],
+    tod: { dawn: 1, day: 0.7, dusk: 0.9, night: 0.2 }, tide: 'change',
+    habitat: 'Coral reefs, bommies and rubble edges on the Great Barrier Reef and Ningaloo.',
+    baits: ['Whole pilchard', 'Live fusilier / hardiheads', 'Squid'],
+    lures: ['5–7" soft plastics', 'Metal and slow-pitch jigs', 'Deep-diving minnows trolled along the reef edge'],
+    rig: '50–80lb leader, 5/0–7/0 hook. Pull hard straight away or they bury you in the coral.',
+    size: null, bag: null,
+    tips: 'Reef fish spawning closures apply on the Great Barrier Reef some years, and marine park green zones are no-take. Check the zoning map.'
+  },
+  threadfin: {
+    name: 'Threadfin Salmon', sci: 'Polydactylus macrochir / Eleutheronema tetradactylum',
+    season: [3,3,3,2,2,2,2,2,2,3,3,3], temp: [24, 32],
+    tod: { dawn: 0.9, day: 0.6, dusk: 0.9, night: 0.8 }, tide: 'change',
+    habitat: 'Muddy tidal rivers, creek mouths and mud flats in the tropics – often with barra.',
+    baits: ['Live prawns', 'Live mullet', 'Peeled prawn'],
+    lures: ['Soft vibes', 'Paddle-tail soft plastics hopped on the bottom'],
+    rig: '20–30lb braid, 30–40lb leader, 2/0–4/0 hook on a running sinker.',
+    size: null, bag: null,
+    tips: 'Look for bait flicking on the surface over the flats as the tide starts to run. ⚠️ Crocodiles live here too.'
+  },
+  queenfish: {
+    name: 'Queenfish', sci: 'Scomberoides commersonnianus',
+    season: [2,2,2,3,3,3,3,3,3,3,2,2], temp: [24, 31],
+    tod: { dawn: 1, day: 0.8, dusk: 0.9, night: 0.2 }, tide: 'change',
+    habitat: 'River mouths, headlands, flats and current lines in northern waters.',
+    baits: ['Live herring / mullet', 'Whole garfish'],
+    lures: ['Surface poppers and stickbaits', 'Metal slugs cranked fast', 'Soft plastic jerkbaits'],
+    rig: '30–40lb leader, single 4/0–6/0 hooks. Fast retrieves get the strike.',
+    size: null, bag: null,
+    tips: 'Spectacular jumpers. Look for them busting up bait on the run-out tide at river mouths.'
+  },
+
+  // ---------------- Southern states (VIC, SA, WA, TAS) ----------------
+  kgwhiting: {
+    name: 'King George Whiting', sci: 'Sillaginodes punctatus',
+    season: [3,3,3,3,2,2,1,1,2,2,3,3], temp: [14, 22],
+    tod: { dawn: 0.8, day: 0.9, dusk: 0.8, night: 0.3 }, tide: 'rising',
+    habitat: 'Sand patches between seagrass beds in bays and gulfs of VIC, SA and southern WA.',
+    baits: ['Pipis', 'Squid strips', 'Mussel', 'Sandworm / bloodworm'],
+    lures: ['Small soft plastics or blades hopped along the sand'],
+    rig: 'Paternoster with two #4–#6 long-shank hooks and a little red tube or bead. Berley helps.',
+    size: null, bag: null,
+    tips: 'Anchor on the edge of a sand hole surrounded by weed and berley lightly on the rising tide.'
+  },
+  herring: {
+    name: 'Australian Herring (Tommy Ruff)', sci: 'Arripis georgianus',
+    season: [1,1,2,3,3,3,2,2,1,1,1,1], temp: [14, 22],
+    tod: { dawn: 1, day: 0.7, dusk: 1, night: 0.2 }, tide: 'any',
+    habitat: 'Jetties, beaches, rock groynes and estuary mouths in WA and SA.',
+    baits: ['Maggots / wogs under a float', 'Prawn pieces', 'Squid strips', 'Berley (bread and pollard)'],
+    lures: ['Small "herring poppers" with a trailing jig', 'Small metal slices'],
+    rig: 'Light gear: small float, #10–#8 hook, 4–6lb line, steady berley trail.',
+    size: null, bag: null,
+    tips: 'Great fun for kids off jetties. The autumn run in WA brings big schools close to shore.'
+  },
+  blackbream: {
+    name: 'Black Bream', sci: 'Acanthopagrus butcheri',
+    season: [2,2,2,2,2,2,2,2,3,3,3,2], temp: [12, 24],
+    tod: { dawn: 0.9, day: 0.6, dusk: 1, night: 0.9 }, tide: 'rising',
+    habitat: 'Southern estuaries and rivers – snags, jetties, rock walls and weed edges (VIC, SA, WA, TAS).',
+    baits: ['Sandworm / bloodworm', 'Spider crab', 'Peeled prawn', 'Mussel', 'Pod / spinyhead worm'],
+    lures: ['Small soft plastic grubs', 'Small deep-diving crankbaits', 'Surface walkers in summer'],
+    rig: 'Running ball sinker (as light as possible), #4–#1 hook, 6–8lb fluorocarbon leader.',
+    size: null, bag: null,
+    tips: 'Wary fish – go light, fish quietly and let them run with the bait before striking.'
+  },
+  dhufish: {
+    name: 'WA Dhufish', sci: 'Glaucosoma hebraicum',
+    season: [2,2,2,2,2,2,2,2,2,1,1,2], temp: [16, 23],
+    tod: { dawn: 0.9, day: 0.9, dusk: 0.8, night: 0.4 }, tide: 'any',
+    habitat: 'Offshore limestone reef and lumps off WA\'s west coast, often 20–60 m deep.',
+    baits: ['Octopus', 'Squid', 'Fresh mulie (pilchard) or fish fillet'],
+    lures: ['Heavy soft plastics', 'Slow-pitch jigs'],
+    rig: 'Two-hook paternoster on 60–80lb leader, 6/0–8/0 hooks. Use a release weight for fish you return.',
+    size: null, bag: null,
+    tips: 'WA West Coast demersal rules (seasons, bag limits, licence) have changed recently. Always check the current rules before going.'
+  },
+  sandflathead: {
+    name: 'Sand Flathead', sci: 'Platycephalus bassensis',
+    season: [3,3,3,3,2,2,1,1,2,3,3,3], temp: [11, 21],
+    tod: { dawn: 0.9, day: 0.9, dusk: 0.8, night: 0.3 }, tide: 'any',
+    habitat: 'Sandy and muddy bottoms in bays, estuaries and inshore waters of VIC, TAS and SA.',
+    baits: ['Squid strips', 'Pilchard pieces', 'Prawn', 'Fish fillet'],
+    lures: ['Soft plastics bounced along the bottom on a drift'],
+    rig: 'Paternoster with two #1–2/0 hooks, enough sinker to hold bottom while drifting.',
+    size: null, bag: null,
+    tips: 'The easiest fish in the south for families. Drift over sand in 5–20 m until you find a patch, then go back over it.'
+  },
+  garfish: {
+    name: 'Garfish', sci: 'Hyporhamphus spp.',
+    season: [2,2,3,3,3,2,2,2,2,2,2,2], temp: [14, 24],
+    tod: { dawn: 0.9, day: 0.8, dusk: 0.8, night: 0.2 }, tide: 'any',
+    habitat: 'Calm bays, jetties and weed beds just under the surface.',
+    baits: ['Bread', 'Maggots', 'Tiny pieces of prawn', 'Silverfish'],
+    lures: ['Not a lure fish'],
+    rig: 'Tiny pencil float, #12–#10 hook, 3–4lb line and a fine bread berley.',
+    size: null, bag: null,
+    tips: 'Excellent eating and top bait for tailor, salmon and kingfish.'
+  },
+
   // ---------------- Freshwater ----------------
-  // closed: months (0–11) when a closed season applies; where: 'all' | 'river'; release: true = catch & release only
+  // closures: list of { states, months (0–11), where: 'all' | 'river', release: true = catch & release only }
   bass: {
     name: 'Australian Bass', sci: 'Macquaria novemaculeata', water: 'fresh',
     season: [3,3,3,2,1,1,1,1,2,3,3,3], temp: [16, 28],
     tod: { dawn: 1, day: 0.4, dusk: 1, night: 0.8 }, tide: 'any',
-    closed: { months: [5, 6, 7], where: 'river', release: true, note: 'Bass & estuary perch closed season in rivers and estuaries 1 Jun – 31 Aug: catch and release only (dams stay open). Check NSW DPI.' },
+    closures: [{ states: ['NSW'], months: [5, 6, 7], where: 'river', release: true, note: 'NSW bass & estuary perch closed season in rivers and estuaries 1 Jun – 31 Aug: catch and release only (dams stay open). Check NSW DPI.' }],
     habitat: 'Snags, overhanging trees and rocky banks in coastal rivers; weed edges and points in stocked dams.',
     baits: ['Live shrimp', 'Crickets / cicadas', 'Scrub worms', 'Small live poddy mullet'],
     lures: ['Surface fizzers / poppers at dawn, dusk and night', 'Small spinnerbaits', 'Lipless crankbaits', '2–3" soft plastics'],
@@ -212,7 +338,7 @@ FISH.SPECIES = {
     name: 'Murray Cod', sci: 'Maccullochella peelii', water: 'fresh',
     season: [3,3,3,3,2,1,1,1,0,0,0,2], temp: [14, 26],
     tod: { dawn: 0.9, day: 0.5, dusk: 1, night: 0.9 }, tide: 'any', rain: true, moon: true,
-    closed: { months: [8, 9, 10], where: 'all', note: 'Murray cod closed season 1 Sep – 30 Nov (spawning): do not target them. Check NSW DPI.' },
+    closures: [{ states: ['NSW', 'VIC', 'ACT', 'SA'], months: [8, 9, 10], where: 'all', note: 'Murray cod closed season (spawning) from 1 Sep – around the end of Nov or Dec depending on the state: do not target them. Check your state\'s rules.' }],
     habitat: 'Big snags, undercut banks and deep holes in the Murray–Darling rivers and inland dams.',
     baits: ['Live yabbies', 'Bardi grubs', 'Big scrub worm bunches', 'Cheese / chicken (common local baits)'],
     lures: ['Large spinnerbaits', 'Big deep-diving hardbodies', 'Surface wake baits at night in summer', 'Swimbaits'],
@@ -224,7 +350,11 @@ FISH.SPECIES = {
     name: 'Trout (Rainbow & Brown)', sci: 'Oncorhynchus mykiss / Salmo trutta', water: 'fresh',
     season: [2,2,3,3,3,2,2,2,2,3,3,2], temp: [8, 18],
     tod: { dawn: 1, day: 0.5, dusk: 1, night: 0.4 }, tide: 'any',
-    closed: { months: [5, 6, 7, 8], where: 'river', note: 'Trout rivers and streams are closed from the June long weekend to the October long weekend. Lakes like Eucumbene and Jindabyne stay open. Check NSW DPI.' },
+    closures: [
+      { states: ['NSW'], months: [5, 6, 7, 8], where: 'river', note: 'NSW trout rivers and streams close from the June long weekend to the October long weekend. Lakes stay open. Check NSW DPI.' },
+      { states: ['VIC'], months: [5, 6, 7], where: 'river', note: 'Victorian trout rivers and streams close over winter (roughly June – early September). Lakes stay open. Check VFA rules.' },
+      { states: ['TAS'], months: [4, 5, 6], where: 'all', note: 'Tasmanian trout season closes over winter for most waters (roughly May – early August); some lakes stay open. Check IFS rules.' }
+    ],
     habitat: 'Cold Snowy Mountains and tableland lakes and streams – drop-offs, weed edges and river inflows.',
     baits: ['Scrub worms', 'Mudeyes under a float', 'PowerBait dough', 'Wood grubs'],
     lures: ['Tassie Devils (trolled or cast)', 'Small inline spinners', 'Small soft plastics / minnows', 'Flies: nymphs, woolly buggers, dry flies'],
