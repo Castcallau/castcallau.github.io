@@ -34,7 +34,7 @@
   }
   </script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="css/styles.css?v=202611141758">
+  <link rel="stylesheet" href="css/styles.css?v=202611141805">
 </head>
 <body>
   <header class="top">
@@ -88,7 +88,7 @@
 
   <main id="view-spots" class="spots">
     <aside class="list-pane">
-      <div class="list-head"><div class="search-box"><span aria-hidden="true">🔍</span><input type="search" id="search" placeholder="Search spots, towns or fish…" aria-label="Search spots" autocomplete="off"></div><div class="list-head-row"><b id="count"></b><button class="btn small" id="pin-start" type="button">📌 Pin a spot</button></div></div>
+      <div class="list-head"><div class="search-box"><span aria-hidden="true">🔍</span><input type="search" id="search" placeholder="Search spots, towns or fish…" aria-label="Search spots" autocomplete="off"></div><div class="search-box fish-pick"><span aria-hidden="true">🎣</span><input type="text" id="fish-search" placeholder="Fish you're after… e.g. kingy, barra, flatty" aria-label="Fish you are after" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="fish-suggest" aria-autocomplete="list"><button class="clear-btn" id="fish-clear" type="button" aria-label="Clear fish" hidden>✕</button><ul class="suggest" id="fish-suggest" role="listbox" hidden></ul></div><div class="list-head-row"><b id="count"></b><button class="btn small" id="pin-start" type="button">📌 Pin a spot</button></div></div>
       <div class="scroll list-scroll">
         <div id="list" class="list">
           <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
@@ -226,14 +226,14 @@
   <div id="tooltip" class="tooltip" hidden></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="js/data/species.js?v=202611141758"></script>
-  <script src="js/data/locations.js?v=202611141758"></script>
-  <script src="js/data/locations-au.js?v=202611141758"></script>
-  <script src="js/api.js?v=202611141758"></script>
-  <script src="js/scoring.js?v=202611141758"></script>
-  <script src="js/pins.js?v=202611141758"></script>
-  <script src="js/app.js?v=202611141758"></script>
-  <script src="js/alerts.js?v=202611141758"></script>
-  <script src="js/catchlog.js?v=202611141758"></script>
+  <script src="js/data/species.js?v=202611141805"></script>
+  <script src="js/data/locations.js?v=202611141805"></script>
+  <script src="js/data/locations-au.js?v=202611141805"></script>
+  <script src="js/api.js?v=202611141805"></script>
+  <script src="js/scoring.js?v=202611141805"></script>
+  <script src="js/pins.js?v=202611141805"></script>
+  <script src="js/app.js?v=202611141805"></script>
+  <script src="js/alerts.js?v=202611141805"></script>
+  <script src="js/catchlog.js?v=202611141805"></script>
 </body>
 </html>

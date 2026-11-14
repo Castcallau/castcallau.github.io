@@ -92,7 +92,19 @@ input[type=search] { width: 190px; }
 /* Search boxes (spots + species) */
 .search-box { display: flex; align-items: center; gap: 8px; padding: 0 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--page); transition: border-color .15s, box-shadow .15s; }
 .search-box:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--win); }
-.search-box input[type=search] { flex: 1; min-width: 0; width: auto; border: 0; outline: 0; background: transparent; padding: 9px 0; font-size: 15px; }
+.search-box input[type=search], .search-box input[type=text] { flex: 1; min-width: 0; width: auto; border: 0; outline: 0; background: transparent; color: var(--ink); padding: 9px 0; font: inherit; font-size: 15px; }
+.fish-pick { position: relative; }
+.fish-pick.on { border-color: var(--accent); background: var(--win); }
+.fish-pick.on input { font-weight: 600; }
+.clear-btn { border: 0; background: transparent; color: var(--ink-2); font-size: 15px; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; }
+.clear-btn:hover { background: var(--surface-2); }
+.suggest { position: absolute; left: -1px; right: -1px; top: calc(100% + 4px); z-index: 50; margin: 0; padding: 4px; list-style: none;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.25); max-height: 320px; overflow-y: auto; }
+.suggest li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 9px 10px; border-radius: 7px; cursor: pointer; }
+.suggest li small { color: var(--ink-2); white-space: nowrap; }
+.suggest li[aria-selected="true"], .suggest li:hover { background: var(--win); }
+.suggest li.none { color: var(--ink-2); cursor: default; }
+.list-head { position: relative; z-index: 4; }
 .search-box.sticky { position: sticky; top: 0; z-index: 3; background: var(--surface); margin-bottom: 10px; box-shadow: 0 4px 10px var(--page); }
 .list-scroll { flex: 1; min-height: 0; }
 .list { padding: 8px; display: flex; flex-direction: column; gap: 6px; }

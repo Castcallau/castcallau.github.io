@@ -584,7 +584,8 @@
     $('#time').oninput = e => { state.offset = Number(e.target.value); render(); };
     $('#now-btn').onclick = () => { state.offset = 0; $('#time').value = 0; render(); };
     $('#region').onchange = e => { state.region = e.target.value; render(); };
-    $('#target').onchange = e => { state.target = e.target.value; compute(); render(); };
+    $('#target').onchange = e => setTarget(e.target.value);
+    initFishPicker();
     $('#sort').onchange = e => {
       state.sort = e.target.value;
       if (state.sort === 'distance' && !state.userPos) locate(); else render();
@@ -640,6 +641,81 @@
   }
 
   // Shared helpers for alerts.js and catchlog.js
+  // ---------------- Fish picker (type-ahead) ----------------
+  // Common names anglers actually type.
+  const NICKNAMES = {
+    bream: 'yellowfin bream silver bream', flathead: 'flatty flatties lizard dusky', whiting: 'sandy whiting summer whiting',
+    tailor: 'chopper choppers', salmon: 'sambo aussie salmon', mulloway: 'jew jewie jewfish soapy', luderick: 'blackfish blackie',
+    kingfish: 'kingy kingie kingies yellowtail kingfish', snapper: 'red reds squire pinkie pink snapper', squid: 'calamari squid', trevally: 'trev trevs blurter',
+    drummer: 'pig rock blackfish', mahi: 'dolphin dolphinfish dollies', mackerel: 'spanish spotty spotties macks', bonito: 'bonnie bonnies bonito',
+    tigerflathead: 'tiger flatty', bass: 'aussie bass bassy', goldenperch: 'yellowbelly yellas callop', murraycod: 'cod goodoo greenfish',
+    trout: 'rainbow brown brownie rainbows', redfin: 'english perch reddie', carp: 'european carp',
+    barramundi: 'barra barras', mangrovejack: 'jack jacks red bream', coraltrout: 'trout coral reef', threadfin: 'threadies blue salmon king salmon',
+    queenfish: 'queenie queenies', kgwhiting: 'kg kgs king george spotted whiting', herring: 'tommy tommies tommy ruff ruffie',
+    blackbream: 'black bream southern bream', dhufish: 'dhuie dhuies jewie wa', sandflathead: 'sandy flatty southern flathead', garfish: 'gar gardies garfish'
+  };
+  let fishPicks = [], fishActive = -1;
+  const spotCount = id => F.LOCATIONS.filter(l => l.species.includes(id)).length;
+
+  function fishMatches(q) {
+    const words = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (!words.length) return Object.keys(SP).sort((a, b) => spotCount(b) - spotCount(a)).slice(0, 8);
+    const score = id => {
+      const name = SP[id].name.toLowerCase(), text = `${name} ${SP[id].sci.toLowerCase()} ${NICKNAMES[id] || ''}`;
+      if (!words.every(w => wordMatch(text, w))) return -1;
+      return (name.startsWith(words[0]) ? 3 : 0) + (words.every(w => wordMatch(name, w)) ? 2 : 0) + spotCount(id) / 100;
+    };
+    return Object.keys(SP).map(id => [id, score(id)]).filter(x => x[1] >= 0).sort((a, b) => b[1] - a[1]).slice(0, 8).map(x => x[0]);
+  }
+
+  function showFishSuggest() {
+    const box = $('#fish-suggest'), input = $('#fish-search');
+    fishPicks = fishMatches(input.value === (SP[state.target] || {}).name ? '' : input.value);
+    fishActive = fishPicks.length ? 0 : -1;
+    box.innerHTML = fishPicks.length ? fishPicks.map((id, k) => `<li role="option" id="fs-${id}" data-id="${id}" aria-selected="${k === fishActive}">
+        <span>${esc(SP[id].name)}</span><small>${SP[id].water === 'fresh' ? '💧' : '🌊'} ${spotCount(id)} spot${spotCount(id) === 1 ? '' : 's'}</small></li>`).join('')
+      : '<li class="none">No fish by that name – try the Species tab</li>';
+    box.hidden = false; input.setAttribute('aria-expanded', 'true');
+  }
+  function hideFishSuggest() { $('#fish-suggest').hidden = true; $('#fish-search').setAttribute('aria-expanded', 'false'); }
+  function moveFishActive(d) {
+    if (!fishPicks.length) return;
+    fishActive = (fishActive + d + fishPicks.length) % fishPicks.length;
+    document.querySelectorAll('#fish-suggest [role=option]').forEach((li, k) => li.setAttribute('aria-selected', k === fishActive));
+    $('#fish-search').setAttribute('aria-activedescendant', 'fs-' + fishPicks[fishActive]);
+  }
+  function setTarget(id) {
+    state.target = id || '';
+    $('#target').value = state.target;
+    $('#fish-search').value = id ? SP[id].name : '';
+    $('#fish-clear').hidden = !id;
+    $('.fish-pick').classList.toggle('on', !!id);
+    hideFishSuggest();
+    compute(); render();
+  }
+  function initFishPicker() {
+    const input = $('#fish-search');
+    input.addEventListener('focus', () => { input.select(); showFishSuggest(); });
+    input.addEventListener('input', showFishSuggest);
+    input.addEventListener('keydown', e => {
+      if (e.key === 'ArrowDown') { e.preventDefault(); if ($('#fish-suggest').hidden) showFishSuggest(); else moveFishActive(1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); moveFishActive(-1); }
+      else if (e.key === 'Enter') { e.preventDefault(); if (fishActive >= 0) { setTarget(fishPicks[fishActive]); input.blur(); } }
+      else if (e.key === 'Escape') { hideFishSuggest(); input.value = state.target ? SP[state.target].name : ''; input.blur(); }
+    });
+    // pointerdown (not click) so it fires before the input loses focus
+    $('#fish-suggest').addEventListener('pointerdown', e => {
+      const li = e.target.closest('[data-id]');
+      if (li) { e.preventDefault(); setTarget(li.dataset.id); input.blur(); }
+    });
+    input.addEventListener('blur', () => setTimeout(() => {
+      hideFishSuggest();
+      if (!input.value.trim() && state.target) setTarget('');
+      else input.value = state.target ? SP[state.target].name : '';
+    }, 120));
+    $('#fish-clear').onclick = () => setTarget('');
+  }
+
   // State → region dropdown (shared with alerts). Values: 'all', 'favs', 'pins', 'state:XX' or a region name.
   function regionOptions(allLabel, extras) {
     return `<option value="all">${allLabel}</option>` +
