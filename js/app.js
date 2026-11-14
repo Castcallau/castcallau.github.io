@@ -417,8 +417,8 @@
       <div class="chips">${chips.join('')}</div>
       <dl>
         <dt>Best baits</dt><dd>${sp.baits.map(esc).join(' · ')}</dd>
-        <dt>Lures</dt><dd>${sp.lures.map(esc).join(' · ')}</dd>
-        <dt class="shop-dt">🛒 Gear</dt><dd>${gearLinks(sp)}</dd>
+        <dt>Lures</dt><dd>${lureLinks(sp)}</dd>
+        <dt class="shop-dt">🛒 Shops</dt><dd>${gearLinks(sp)}</dd>
         <dt>Rig</dt><dd>${esc(sp.rig)}</dd>
         <dt>Where</dt><dd>${esc(sp.habitat)}</dd>
         <dt>Size / bag</dt><dd>${sizeTxt(sp, l.state)} <span class="muted">(guide only – ${rulesLink(l)})</span></dd>
@@ -556,8 +556,8 @@
         <p class="muted small">Likes ${sp.temp[0]}–${sp.temp[1]}°C water · ${esc(sp.habitat)}</p>
         <dl>
           <dt>Baits</dt><dd>${sp.baits.map(esc).join(' · ')}</dd>
-          <dt>Lures</dt><dd>${sp.lures.map(esc).join(' · ')}</dd>
-          <dt class="shop-dt">🛒 Gear</dt><dd>${gearLinks(sp)}</dd>
+          <dt>Lures</dt><dd>${lureLinks(sp)}</dd>
+          <dt class="shop-dt">🛒 Shops</dt><dd>${gearLinks(sp)}</dd>
           <dt>Rig</dt><dd>${esc(sp.rig)}</dd>
           <dt>Size / bag</dt><dd>${sizeTxt(sp)}</dd>
         </dl>
@@ -671,6 +671,28 @@
   function gearLinks(sp) {
     const q = encodeURIComponent(sp.name.replace(/ \(.+\)/, '') + ' fishing').replace(/%20/g, '+');
     return `<span class="shop">${SHOPS.map(s => `<a href="${s.url(q)}" target="_blank" rel="noopener">${s.name}</a>`).join('<span aria-hidden="true"> · </span>')}</span>`;
+  }
+  // Turn a lure description into what you'd type into a tackle shop search:
+  // "3–5" paddle-tail soft plastics hopped on the bottom" -> "paddle-tail soft plastics"
+  function lureQuery(text) {
+    if (/not a lure|bait only|high-speed spinning/i.test(text)) return null;
+    const flies = text.match(/^flies:\s*([a-z ]+)/i);
+    if (flies) return flies[1].trim().replace(/s$/, '') + ' flies';
+    let q = text.replace(/\(.*?\)/g, ' ').replace(/["“”]/g, '')
+      .split(/ \/ | – | - |,/)[0]
+      .split(/\s+(?:on|for|with|cast|trolled|worked|hopped|cranked|jigged|bounced|along|over|at|in|when|tight|retrieved)(?:\s+|$)/i)[0]
+      .split(/\s+/).filter(w => !/\d/.test(w)).join(' ')        // drop sizes like 3–5" or 20–60g
+      .trim();
+    if (/^blades?$/i.test(q)) q = 'blade lures';
+    return q.length > 2 ? q : null;
+  }
+  // Each lure becomes its own link straight to that lure (BCF has the biggest range).
+  function lureLinks(sp) {
+    return sp.lures.map(t => {
+      const q = lureQuery(t);
+      if (!q) return esc(t);
+      return `<a class="lure-link" href="${SHOPS[0].url(encodeURIComponent(q).replace(/%20/g, '+'))}" target="_blank" rel="noopener" title="Find ${esc(q)} at BCF">${esc(t)}</a>`;
+    }).join(' · ');
   }
   const tackleNearby = l => `https://www.google.com/maps/search/fishing+tackle+shop/@${l.lat},${l.lon},12z`;
 
