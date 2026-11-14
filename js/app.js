@@ -50,26 +50,50 @@
   }
 
   // ---------------- Data ----------------
+  const agoText = ms => { const m = Math.round(ms / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`; };
+  const builtInSpots = () => F.LOCATIONS.filter(l => !l.pin), pinSpots = () => F.LOCATIONS.filter(l => l.pin);
+
+  function openSharedSpot() {
+    // Shared spot links (?spot=gymeabay) open straight to that spot, once.
+    const want = new URLSearchParams(location.search).get('spot');
+    if (want && !load.opened && F.LOCATIONS.some(l => l.id === want)) { load.opened = true; select(want); }
+  }
+
   async function load(force) {
-    $('#status').textContent = 'Loading live forecast…';
     $('#error').hidden = true;
+    // 1) Show the last saved forecast straight away (instant open, and works with no signal at the spot)…
+    if (!state.data && !force) {
+      try {
+        const [c, cp] = await Promise.all([F.api.peek(builtInSpots()), F.api.peek(pinSpots(), 'fish-pins-cache')]);
+        if (c) {
+          state.data = Object.assign(c.data, cp ? cp.data : {}); state.fetchedAt = c.at; state.stale = true;
+          compute(); render(); openSharedSpot();
+        }
+      } catch (e) { /* no saved forecast – fine */ }
+    }
+    $('#status').textContent = state.data ? `Updating… (showing forecast from ${agoText(Date.now() - state.fetchedAt)})` : 'Loading the 2-week forecast…';
+    // 2) …then get the latest (served from the 30-minute cache if it's fresh enough).
     try {
       const [res, pinRes] = await Promise.all([
-        F.api.load(F.LOCATIONS.filter(l => !l.pin), force),
-        F.api.load(F.LOCATIONS.filter(l => l.pin), force, 'fish-pins-cache').catch(() => ({ data: {} }))
+        F.api.load(builtInSpots(), force),
+        F.api.load(pinSpots(), force, 'fish-pins-cache').catch(() => ({ data: {} }))
       ]);
-      state.data = Object.assign(res.data, pinRes.data); state.fetchedAt = res.at;
+      state.data = Object.assign(res.data, pinRes.data); state.fetchedAt = res.at; state.stale = false;
       if (res.marineOk === false) showError('Swell / tide data is unavailable right now – scores use weather only.');
-      compute(); render();
-      // Shared spot links (?spot=gymeabay) open straight to that spot, once.
-      const want = new URLSearchParams(location.search).get('spot');
-      if (want && !load.opened && F.LOCATIONS.some(l => l.id === want)) { load.opened = true; select(want); }
+      compute(); render(); openSharedSpot();
     } catch (e) {
       console.error(e);
-      showError(`Couldn't load the forecast (${e.message}). Check your internet connection and try again.`);
-      $('#status').textContent = 'Offline';
+      if (state.data) {
+        showError(`No internet right now – showing the forecast saved ${agoText(Date.now() - state.fetchedAt)}. It will update when you're back online.`);
+        compute(); render();
+      } else {
+        showError(`Couldn't load the forecast (${e.message}). Check your internet connection and try again.`);
+        $('#status').textContent = 'Offline';
+      }
     }
   }
+  // Back online after being offline? Quietly refresh.
+  window.addEventListener('online', () => { if (state.stale || !$('#error').hidden) load(true); });
   function showError(msg) { $('#error').hidden = false; $('#error-msg').textContent = msg; }
 
   // Fetch just the pinned spots (after adding/editing a pin) without reloading everything.
@@ -92,8 +116,7 @@
     slider.max = Math.max(0, len - 1);
     if (state.offset > len - 1) state.offset = 0;
     slider.value = state.offset;
-    const mins = Math.round((Date.now() - state.fetchedAt) / 60000);
-    $('#status').textContent = `Forecast updated ${mins < 1 ? 'just now' : mins + ' min ago'}`;
+    $('#status').textContent = `Forecast updated ${agoText(Date.now() - state.fetchedAt)}`;
   }
 
   function hourOf(id) { const a = state.analyses[id]; return a && a.hours[Math.min(state.offset, a.hours.length - 1)]; }

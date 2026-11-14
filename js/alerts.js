@@ -88,15 +88,18 @@ window.FISH = window.FISH || {};
     const rules = load().filter(r => r.enabled);
     if (!rules.length) { $('#alert-banner').hidden = true; return; }
     const res = allMatches(), s = seen(), fresh = [];
+    // Notify only about windows in the next 3 days (further out the forecast changes too much to buzz your phone);
+    // the banner shows the next week. Everything is still listed on the Alerts tab.
+    const nowS = Date.now() / 1000, NOTIFY_AHEAD = 3 * 86400, BANNER_AHEAD = 7 * 86400;
     for (const r of rules) for (const w of res[r.id] || []) {
+      if (w.start > nowS + NOTIFY_AHEAD) continue;      // not marked as seen, so it notifies once it's within 3 days
       const k = winKey(r, w);
       if (!s[k]) { fresh.push({ r, w }); s[k] = w.end; }
     }
-    const nowS = Date.now() / 1000;
     for (const k of Object.keys(s)) if (s[k] < nowS - 86400) delete s[k];
     localStorage.setItem(SEEN, JSON.stringify(s));
 
-    const upcoming = rules.flatMap(r => (res[r.id] || []).map(w => ({ r, w }))).sort((a, b) => a.w.start - b.w.start);
+    const upcoming = rules.flatMap(r => (res[r.id] || []).filter(w => w.start <= nowS + BANNER_AHEAD).map(w => ({ r, w }))).sort((a, b) => a.w.start - b.w.start);
     const banner = $('#alert-banner');
     if (upcoming.length && !sessionStorage.getItem('castcall-banner-closed')) {
       banner.hidden = false;
@@ -174,7 +177,7 @@ window.FISH = window.FISH || {};
           <button class="icon-btn" data-delrule="${r.id}" title="Delete alert" aria-label="Delete alert">🗑</button>
         </div>
         ${!r.enabled ? '' : wins.length ? `<ul class="rule-wins">${wins.map((w, k) => `<li>
-            <button class="link" data-open="${w.loc.id}" data-t="${w.peakT}"><b>${F.ui.esc(w.loc.name.split(' – ')[0])}</b> · ${winLabel(w)} · peak ${w.peak}</button>
+            <button class="link" data-open="${w.loc.id}" data-t="${w.peakT}"><b>${F.ui.esc(w.loc.name.split(' – ')[0])}</b> · ${winLabel(w)} · peak ${w.peak}${w.start > Date.now() / 1000 + 7 * 86400 ? ' <span class="far-note">· less certain</span>' : ''}</button>
             <span class="cal"><a href="${gcal(w)}" target="_blank" rel="noopener">Google Calendar</a> · <button class="link" data-ics="${r.id}|${k}">Phone calendar (.ics)</button></span>
           </li>`).join('')}</ul>` : closedNow(r)
             ? `<p class="muted small">⛔ ${F.ui.esc(closedNow(r).note)} This alert will start matching again when the season reopens.</p>`

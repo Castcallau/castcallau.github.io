@@ -84,6 +84,14 @@ window.FISH = window.FISH || {};
 
   FISH.api = {
     FORECAST_DAYS,
+    // The last saved forecast for these spots, however old (up to 3 days) – used to show something instantly
+    // on open, and to keep working with no phone signal.
+    async peek(locations, cacheKey = CACHE_KEY) {
+      if (!locations.length) return { data: {}, at: Date.now() };
+      const c = await idb.get(cacheKey);
+      if (!c || c.ids !== locations.map(l => l.id).join() || Date.now() - c.at > 3 * 86400000) return null;
+      return { data: c.data, at: c.at };
+    },
     // cacheKey lets pinned spots be cached separately from the built-in spots.
     async load(locations, force, cacheKey = CACHE_KEY) {
       if (!locations.length) return { data: {}, at: Date.now(), cached: true, marineOk: true };
