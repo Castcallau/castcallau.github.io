@@ -80,7 +80,6 @@
         <option value="distance">Nearest</option>
         <option value="name">A–Z</option>
       </select>
-      <input type="search" id="search" placeholder="Search spots or fish…" aria-label="Search">
       <button class="btn" id="locate">📍 Near me</button>
     </div>
   </div>
@@ -89,7 +88,7 @@
 
   <main id="view-spots" class="spots">
     <aside class="list-pane">
-      <div class="list-head"><b id="count"></b><button class="btn small" id="pin-start" type="button">📌 Pin a spot</button></div>
+      <div class="list-head"><div class="search-box"><span aria-hidden="true">🔍</span><input type="search" id="search" placeholder="Search spots, towns or fish…" aria-label="Search spots" autocomplete="off"></div><div class="list-head-row"><b id="count"></b><button class="btn small" id="pin-start" type="button">📌 Pin a spot</button></div></div>
       <div class="scroll list-scroll">
         <div id="list" class="list">
           <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
@@ -189,7 +188,8 @@
   </main>
 
   <main id="view-species" class="page wide scroll" hidden>
-    <p class="muted">Season ratings are for NSW waters. Darker squares mean better months. Sizes, bag limits and closed seasons are a guide only.</p>
+    <div class="search-box sticky"><span aria-hidden="true">🔍</span><input type="search" id="species-search" placeholder="Search fish, bait or lures…" aria-label="Search species" autocomplete="off"><span class="muted small" id="species-count"></span></div>
+    <p class="muted">Season ratings are a guide for Australian waters. Darker squares mean better months. Sizes, bag limits and closed seasons are a guide only.</p>
     <div id="species-grid"></div>
   </main>
 

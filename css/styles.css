@@ -86,7 +86,14 @@ input[type=search] { width: 190px; }
 /* Layout */
 .spots { display: grid; grid-template-columns: minmax(330px, 410px) 1fr; position: relative; overflow: hidden; }
 .list-pane { display: flex; flex-direction: column; border-right: 1px solid var(--border); min-height: 0; background: var(--page); }
-.list-head { flex: none; display: flex; justify-content: space-between; align-items: baseline; padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.list-head { flex: none; display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.list-head-row { display: flex; justify-content: space-between; align-items: center; }
+
+/* Search boxes (spots + species) */
+.search-box { display: flex; align-items: center; gap: 8px; padding: 0 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--page); transition: border-color .15s, box-shadow .15s; }
+.search-box:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--win); }
+.search-box input[type=search] { flex: 1; min-width: 0; width: auto; border: 0; outline: 0; background: transparent; padding: 9px 0; font-size: 15px; }
+.search-box.sticky { position: sticky; top: 0; z-index: 3; background: var(--surface); margin-bottom: 10px; box-shadow: 0 4px 10px var(--page); }
 .list-scroll { flex: 1; min-height: 0; }
 .list { padding: 8px; display: flex; flex-direction: column; gap: 6px; }
 .map-pane { position: relative; min-height: 0; z-index: 0; }

@@ -95,6 +95,15 @@
 
   function hourOf(id) { const a = state.analyses[id]; return a && a.hours[Math.min(state.offset, a.hours.length - 1)]; }
 
+  // Everything a spot can be found by: name, area, state, type, fish, and words in its notes (e.g. "baths", "jetty").
+  // Match from the start of a word, so "cod" finds "Murray Cod" but not "crocodile".
+  const wordMatch = (text, w) => new RegExp('(^|[^a-z0-9])' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).test(text);
+  const searchCache = {};
+  function searchText(l) {
+    return searchCache[l.id + l.name] || (searchCache[l.id + l.name] = [l.name, l.region, l.state, F.STATES[l.state].name, TYPE[l.type], l.water === 'fresh' ? 'freshwater fresh' : 'saltwater salt',
+      l.species.map(s => SP[s].name).join(' '), l.notes, l.access_info, l.pin ? 'pin my pins' : '', l.local ? 'local' : ''].join(' ').toLowerCase());
+  }
+
   function visibleLocations() {
     const q = state.search.trim().toLowerCase();
     const r = state.region;
@@ -103,7 +112,7 @@
       && (state.access === 'all' || l.access.includes(state.access))
       && (state.water === 'all' || l.water === state.water)
       && (!state.target || l.species.includes(state.target))
-      && (!q || (l.name + ' ' + l.region + ' ' + l.state + ' ' + F.STATES[l.state].name + ' ' + l.species.map(s => SP[s].name).join(' ')).toLowerCase().includes(q)));
+      && (!q || q.split(/\s+/).every(w => wordMatch(searchText(l), w))));
     if (state.sort === 'distance' && state.userPos) list.sort((a, b) => distKm(state.userPos, [a.lat, a.lon]) - distKm(state.userPos, [b.lat, b.lon]));
     else if (state.sort === 'name') list.sort((a, b) => a.name.localeCompare(b.name));
     else list.sort((a, b) => hourOf(b.id).score - hourOf(a.id).score);
@@ -133,7 +142,13 @@
   function renderList() {
     const list = visibleLocations();
     $('#count').textContent = `${list.length} spot${list.length === 1 ? '' : 's'}`;
-    if (!list.length) { $('#list').innerHTML = '<p class="empty">No spots match these filters.</p>'; return; }
+    if (!list.length) {
+      $('#list').innerHTML = state.search.trim()
+        ? `<p class="empty">No spots match "${esc(state.search.trim())}".<br>Try another word, change the filters, or <button class="link" id="empty-pin">📌 pin the spot yourself</button>.</p>`
+        : '<p class="empty">No spots match these filters.</p>';
+      const b = $('#empty-pin'); if (b) b.onclick = () => $('#pin-start').click();
+      return;
+    }
     $('#list').innerHTML = list.map((l, rank) => {
       curTZ = l.tz;
       const a = state.analyses[l.id], h = hourOf(l.id), b = bucket(h.score);
@@ -535,10 +550,18 @@
         ${spots.length ? `<div class="sp-spots"><b>Best spots ${state.offset === 0 ? 'now' : 'at selected time'}:</b> ${spots.map(x => `<button class="link" data-goto="${x.l.id}">${esc(x.l.name.split(' – ')[0])} (${x.score})</button>`).join(', ')}</div>` : ''}
       </article>`;
     };
-    const all = Object.entries(SP);
-    $('#species-grid').innerHTML =
-      `<h2 class="grp">🌊 Saltwater</h2><div class="species-grid">${all.filter(([, s]) => s.water !== 'fresh').map(card).join('')}</div>
-       <h2 class="grp">💧 Freshwater</h2><div class="species-grid">${all.filter(([, s]) => s.water === 'fresh').map(card).join('')}</div>`;
+    // Search matches the fish name, scientific name, other names, baits, lures, rig, habitat and tips.
+    const words = (state.speciesQ || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const text = sp => [sp.name, sp.sci, sp.habitat, sp.tips, sp.rig, ...sp.baits, ...sp.lures, sp.water === 'fresh' ? 'freshwater fresh' : 'saltwater salt'].join(' ').toLowerCase();
+    const inName = sp => words.every(w => wordMatch(sp.name.toLowerCase(), w));
+    const all = Object.entries(SP).filter(([, sp]) => words.every(w => wordMatch(text(sp), w)))
+      .sort((a, b) => inName(b[1]) - inName(a[1]));   // fish whose name matches come first
+    const salt = all.filter(([, s]) => s.water !== 'fresh'), fresh = all.filter(([, s]) => s.water === 'fresh');
+    $('#species-count').textContent = words.length ? `${all.length} of ${Object.keys(SP).length} fish` : `${all.length} fish`;
+    $('#species-grid').innerHTML = !all.length
+      ? `<p class="empty">No fish match "${esc(state.speciesQ.trim())}". Try a fish name, a bait like "prawn", or a place like "reef".</p>`
+      : (salt.length ? `<h2 class="grp">🌊 Saltwater</h2><div class="species-grid">${salt.map(card).join('')}</div>` : '') +
+        (fresh.length ? `<h2 class="grp">💧 Freshwater</h2><div class="species-grid">${fresh.map(card).join('')}</div>` : '');
     document.querySelectorAll('[data-goto]').forEach(b => b.onclick = () => { setView('spots'); select(b.dataset.goto); });
   }
 
@@ -567,6 +590,7 @@
       if (state.sort === 'distance' && !state.userPos) locate(); else render();
     };
     $('#search').oninput = e => { state.search = e.target.value; render(); };
+    $('#species-search').oninput = e => { state.speciesQ = e.target.value; renderSpecies(); };
     document.querySelectorAll('[name=access]').forEach(r => r.onchange = e => { state.access = e.target.value; compute(); render(); });
     document.querySelectorAll('[name=water]').forEach(r => r.onchange = e => { state.water = e.target.value; render(); });
     $('#locate').onclick = locate;
