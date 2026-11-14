@@ -120,12 +120,13 @@
     if (!list.length) { $('#list').innerHTML = '<p class="empty">No spots match these filters.</p>'; return; }
     $('#list').innerHTML = list.map((l, rank) => {
       const a = state.analyses[l.id], h = hourOf(l.id), b = bucket(h.score);
-      const top = h.species.filter(s => s.act >= 0.25).slice(0, 3).map(s => SP[s.id].name.replace(/ \(.+\)/, ''));
+      const top = rank === 0 && state.sort === 'score' && list.length > 1;
+      const fish = h.species.filter(s => s.act >= 0.25).slice(0, 3).map(s => SP[s.id].name.replace(/ \(.+\)/, ''));
       const w = nextWindow(a, h.t);
       const tide = h.fresh ? `🌧️ ${h.rain48.toFixed(0)} mm / 48 h`
         : h.tide ? `${h.tide.state}${h.tide.next ? ` · ${h.tide.next.type === 'high' ? 'H' : 'L'} ${tm(h.tide.next.t)}` : ''}` : 'Tide n/a';
       const dist = state.userPos ? ` · ${Math.round(distKm(state.userPos, [l.lat, l.lon]))} km` : '';
-      return `<button class="card${state.selected === l.id ? ' active' : ''}" data-id="${l.id}">
+      return `<button class="card${state.selected === l.id ? ' active' : ''}${top ? ' top-pick' : ''}" data-id="${l.id}">
         <div class="score s${b}" aria-label="Score ${h.score} out of 100, ${LABEL[b]}"><span>${h.score}</span><small>${LABEL[b]}</small></div>
         <div class="card-body">
           <div class="card-title">${state.favs.has(l.id) ? '★ ' : ''}${esc(l.name)}</div>
@@ -136,7 +137,7 @@
             <span title="${h.fresh ? 'Estimated water temperature' : 'Sea temperature'}">🌡️ ${h.sst == null ? '–' : h.sst.toFixed(0) + '°'}</span>
             <span title="Tide">${tide}</span>
           </div>
-          <div class="card-fish">${top.length ? '🎣 ' + top.join(', ') : '<span class="muted">Quiet – nothing much in season</span>'}</div>
+          <div class="card-fish">${fish.length ? '🎣 ' + fish.join(', ') : '<span class="muted">Quiet – nothing much in season</span>'}</div>
           ${w ? `<div class="card-win">Best: ${day(w.start)} ${hr(w.start)}–${hr(w.end)} (${w.peak})</div>` : ''}
           ${h.warnings.length ? `<div class="card-warn">⚠️ ${esc(h.warnings[0])}</div>` : ''}
           ${h.closures.length ? `<div class="card-closed">⛔ Closed season for ${h.species.filter(s => s.closed).map(s => SP[s.id].name.split(' (')[0]).join(', ')}</div>` : ''}
@@ -167,12 +168,23 @@
   }
 
   function select(id) {
+    const wasOpen = !!state.selected;
     state.selected = id;
     renderList(); renderMap(); renderDetail();
     $('#detail').hidden = false;
     $('#detail').scrollTop = 0;
+    // Phone/browser back button closes the details instead of leaving the app.
+    if (!wasOpen) history.pushState({ detail: id }, '');
+    const card = document.querySelector(`.card[data-id="${id}"]`);
+    if (card) card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     const l = F.LOCATIONS.find(x => x.id === id);
     if (map) map.panTo([l.lat, l.lon]);
+  }
+
+  function closeDetail(fromHistory) {
+    if (!state.selected) return;
+    state.selected = null; $('#detail').hidden = true; renderList(); renderMap();
+    if (!fromHistory && history.state && history.state.detail) history.back();
   }
 
   // ---------------- Detail ----------------
@@ -263,7 +275,7 @@
         <div class="table-wrap">${hourlyTable(a)}</div>
       </section>`;
 
-    $('#close').onclick = () => { state.selected = null; $('#detail').hidden = true; renderList(); renderMap(); };
+    $('#close').onclick = () => closeDetail(false);
     $('#fav').onclick = () => {
       state.favs.has(l.id) ? state.favs.delete(l.id) : state.favs.add(l.id);
       localStorage.setItem('fish-favs', JSON.stringify([...state.favs]));
@@ -470,6 +482,7 @@
   }
 
   function setView(v) {
+    if (v !== 'spots') closeDetail(false);
     state.view = v;
     document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', t.dataset.view === v));
     for (const k of ['spots', 'species', 'alerts', 'log']) $('#view-' + k).hidden = v !== k;
@@ -499,7 +512,17 @@
     $('#retry').onclick = () => load(true);
     $('#list').addEventListener('click', e => { const c = e.target.closest('.card'); if (c) select(c.dataset.id); });
     document.querySelectorAll('.tab').forEach(t => t.onclick = () => setView(t.dataset.view));
-    document.addEventListener('keydown', e => { if (e.key === 'Escape' && state.selected) $('#close') && $('#close').click(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && state.selected) closeDetail(false); });
+    window.addEventListener('popstate', () => closeDetail(true));
+    $('#filters-toggle').onclick = () => {
+      const open = document.querySelector('.controls').classList.toggle('open');
+      $('#filters-toggle').setAttribute('aria-expanded', open);
+    };
+    $('#map-toggle').onclick = () => {
+      const on = $('#view-spots').classList.toggle('show-map');
+      $('#map-toggle').textContent = on ? '☰ List' : '🗺️ Map';
+      if (on && map) setTimeout(() => map.invalidateSize(), 0);
+    };
 
     initMap();
     load(false);

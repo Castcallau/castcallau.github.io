@@ -42,11 +42,11 @@
       <img class="logo" src="icon.svg" alt="" width="34" height="34">
       <div><h1>CastCall <span class="muted">NSW</span></h1><div class="muted small" id="status">Loading…</div></div>
     </div>
-    <nav class="tabs" role="tablist">
-      <button class="tab" role="tab" data-view="spots" aria-selected="true">Spots</button>
-      <button class="tab" role="tab" data-view="alerts" aria-selected="false">🔔 Alerts</button>
-      <button class="tab" role="tab" data-view="log" aria-selected="false">📓 Catch log</button>
-      <button class="tab" role="tab" data-view="species" aria-selected="false">Species</button>
+    <nav class="tabs" role="tablist" aria-label="Sections">
+      <button class="tab" role="tab" data-view="spots" aria-selected="true"><span class="ti" aria-hidden="true">📍</span><span>Spots</span></button>
+      <button class="tab" role="tab" data-view="alerts" aria-selected="false"><span class="ti" aria-hidden="true">🔔</span><span>Alerts</span></button>
+      <button class="tab" role="tab" data-view="log" aria-selected="false"><span class="ti" aria-hidden="true">📓</span><span>Catch log</span></button>
+      <button class="tab" role="tab" data-view="species" aria-selected="false"><span class="ti" aria-hidden="true">🐟</span><span>Species</span></button>
     </nav>
     <button class="btn ghost" id="refresh" title="Refresh forecast">⟳ Refresh</button>
   </header>
@@ -59,9 +59,10 @@
       <div class="time-row">
         <input type="range" id="time" min="0" max="71" value="0" step="1" aria-describedby="time-label">
         <button class="btn small" id="now-btn">Now</button>
+        <button class="btn small filters-toggle" id="filters-toggle" aria-expanded="false" aria-controls="filters">⚙ Filters</button>
       </div>
     </div>
-    <div class="filters">
+    <div class="filters" id="filters">
       <select id="region" aria-label="Region"></select>
       <fieldset class="seg" aria-label="Water">
         <label><input type="radio" name="water" value="all" checked><span>All</span></label>
@@ -89,15 +90,37 @@
   <main id="view-spots" class="spots">
     <aside class="list-pane">
       <div class="list-head"><b id="count"></b><span class="muted small">Ranked for the selected time</span></div>
-      <div id="list" class="list"><p class="empty">Loading spots…</p></div>
+      <div class="scroll list-scroll">
+        <div id="list" class="list">
+          <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+        </div>
+      <footer>
+        <section class="about">
+          <h2>CastCall – free NSW fishing forecast: best spots, times, tides and bait</h2>
+          <p>CastCall is a free fishing forecast for New South Wales. It scores 55 saltwater and freshwater fishing spots every hour for the next three days, using tides, wind, swell, water temperature, barometric pressure, rain and river flow, sunrise and sunset, and the moon. It ranks the best spots, tells you the best time to go, sends fishing alerts and keeps a catch log.</p>
+          <p>Saltwater spots include Botany Bay, La Perouse, Brighton-le-Sands, Cronulla and Bate Bay, Sydney Harbour, Watsons Bay, Manly, Port Hacking, the Hawkesbury River, Long Reef, Pittwater, Brisbane Water, The Entrance, Norah Head, Lake Macquarie, Newcastle, Port Stephens, Shoal Bay, Crowdy Bay, Forster, Port Macquarie, South West Rocks, Coffs Harbour, Yamba, Ballina, Byron Bay, Wollongong, Bass Point, Jervis Bay, Batemans Bay, Narooma, Montague Island, Merimbula and Eden.
+            Freshwater spots include the Nepean River, Lake Lyell, Lake Burrendong, Windamere Dam, Lake St Clair, Glenbawn Dam, the Clarence River, Lake Keepit, Copeton Dam, Lake Eucumbene, Lake Jindabyne, the Thredbo River, Burrinjuck Dam and Lake Mulwala.</p>
+          <p>Each spot shows which fish are biting – bream, dusky flathead, whiting, tailor, Australian salmon, mulloway (jewfish), luderick, yellowtail kingfish, snapper, squid, trevally, drummer, mahi mahi, mackerel, bonito, tiger flathead, Australian bass, golden perch (yellowbelly), Murray cod, trout, redfin and carp – plus the best bait, lures and rigs for each.</p>
+        </section>
+        <p><b>Stay safe:</b> always check conditions yourself before fishing. Wear a lifejacket on rocks and in boats – it is the law at many NSW rock fishing spots and on small boats.
+          Scores are an estimate from forecast models, not a guarantee. A NSW recreational fishing licence is needed in both salt and fresh water.</p>
+        <p>
+          <a href="https://www.dpi.nsw.gov.au/fishing/recreational/fishing-rules-and-regs" target="_blank" rel="noopener">NSW DPI fishing rules, bag limits &amp; closed seasons ↗</a> ·
+          <a href="http://www.bom.gov.au/nsw/forecasts/marine.shtml" target="_blank" rel="noopener">BOM marine forecasts &amp; warnings ↗</a> ·
+          <a href="http://www.bom.gov.au/australia/tides/" target="_blank" rel="noopener">BOM tide tables ↗</a> ·
+          Weather, swell &amp; tide data: <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a>
+        </p>
+      </footer>
+      </div>
     </aside>
     <div class="map-pane">
       <div id="map"></div>
-      <aside id="detail" class="detail" hidden></aside>
     </div>
+    <aside id="detail" class="detail scroll" hidden></aside>
+    <button class="fab" id="map-toggle" type="button">🗺️ Map</button>
   </main>
 
-  <main id="view-alerts" class="page" hidden>
+  <main id="view-alerts" class="page scroll" hidden>
     <h2>Fishing alerts</h2>
     <p class="muted">Pick a spot or a fish and a minimum score. CastCall checks the next 3 days every time you open it and tells you when something hits.
       To get a reminder even when CastCall is closed, add the window to your calendar.</p>
@@ -114,7 +137,7 @@
     <div id="alert-rules"></div>
   </main>
 
-  <main id="view-log" class="page" hidden>
+  <main id="view-log" class="page scroll" hidden>
     <div class="page-head">
       <h2>Catch log</h2>
       <div class="page-actions">
@@ -151,28 +174,10 @@
     <div id="log-list" class="log-list"></div>
   </main>
 
-  <main id="view-species" class="species-view" hidden>
+  <main id="view-species" class="page wide scroll" hidden>
     <p class="muted">Season ratings are for NSW waters. Darker squares mean better months. Sizes, bag limits and closed seasons are a guide only.</p>
     <div id="species-grid"></div>
   </main>
-
-  <footer>
-    <section class="about">
-      <h2>CastCall – free NSW fishing forecast: best spots, times, tides and bait</h2>
-      <p>CastCall is a free fishing forecast for New South Wales. It scores 45 saltwater and freshwater fishing spots every hour for the next three days, using tides, wind, swell, water temperature, barometric pressure, rain and river flow, sunrise and sunset, and the moon. It ranks the best spots, tells you the best time to go, sends fishing alerts and keeps a catch log.</p>
-      <p>Saltwater spots include Botany Bay, Sydney Harbour, Port Hacking, the Hawkesbury River, Long Reef, Pittwater, The Entrance, Norah Head, Lake Macquarie, Newcastle, Port Stephens, Forster, Port Macquarie, South West Rocks, Coffs Harbour, Yamba, Ballina, Wollongong, Bass Point, Jervis Bay, Batemans Bay, Narooma, Montague Island and Eden.
-        Freshwater spots include the Nepean River, Lake Lyell, Lake Burrendong, Windamere Dam, Lake St Clair, Glenbawn Dam, the Clarence River, Lake Keepit, Copeton Dam, Lake Eucumbene, Lake Jindabyne, the Thredbo River, Burrinjuck Dam and Lake Mulwala.</p>
-      <p>Each spot shows which fish are biting – bream, dusky flathead, whiting, tailor, Australian salmon, mulloway (jewfish), luderick, yellowtail kingfish, snapper, squid, trevally, drummer, mahi mahi, mackerel, bonito, tiger flathead, Australian bass, golden perch (yellowbelly), Murray cod, trout, redfin and carp – plus the best bait, lures and rigs for each.</p>
-    </section>
-    <p><b>Stay safe:</b> always check conditions yourself before fishing. Wear a lifejacket on rocks and in boats – it is the law at many NSW rock fishing spots and on small boats.
-      Scores are an estimate from forecast models, not a guarantee. A NSW recreational fishing licence is needed in both salt and fresh water.</p>
-    <p>
-      <a href="https://www.dpi.nsw.gov.au/fishing/recreational/fishing-rules-and-regs" target="_blank" rel="noopener">NSW DPI fishing rules, bag limits &amp; closed seasons ↗</a> ·
-      <a href="http://www.bom.gov.au/nsw/forecasts/marine.shtml" target="_blank" rel="noopener">BOM marine forecasts &amp; warnings ↗</a> ·
-      <a href="http://www.bom.gov.au/australia/tides/" target="_blank" rel="noopener">BOM tide tables ↗</a> ·
-      Weather, swell &amp; tide data: <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a>
-    </p>
-  </footer>
 
   <div id="tooltip" class="tooltip" hidden></div>
 
