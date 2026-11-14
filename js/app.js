@@ -710,6 +710,8 @@
 
     initMap();
     load(false);
+    const imported = sessionStorage.getItem('castcall-imported');
+    if (imported) { sessionStorage.removeItem('castcall-imported'); setTimeout(() => toast(`✅ CastCall has a new address – moved your ${imported} saved item${imported === '1' ? '' : 's'} across`), 800); }
     if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
       // updateViaCache 'none' = always check for a new version of the app; when one takes over, reload once.
       const hadController = !!navigator.serviceWorker.controller;
