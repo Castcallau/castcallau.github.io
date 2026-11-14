@@ -1,8 +1,9 @@
 {
-  "name": "TideLine NSW – Fishing Forecast",
-  "short_name": "TideLine",
-  "description": "Best NSW fishing spots, times, tides, weather and bait.",
+  "name": "CastCall NSW – Fishing Forecast",
+  "short_name": "CastCall",
+  "description": "Best NSW fishing spots, times, tides, weather and bait – with alerts and a catch log.",
   "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#0d0d0d",
   "theme_color": "#104281",

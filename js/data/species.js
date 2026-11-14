@@ -181,5 +181,77 @@ FISH.SPECIES = {
     rig: 'Two-hook paternoster rig, 2/0–4/0 hooks, sinker heavy enough to hold bottom on the drift.',
     size: null, bag: null,
     tips: 'Drift over sand edges near reef. Good fish for families on calm offshore days.'
+  },
+
+  // ---------------- Freshwater ----------------
+  // closed: months (0–11) when a closed season applies; where: 'all' | 'river'; release: true = catch & release only
+  bass: {
+    name: 'Australian Bass', sci: 'Macquaria novemaculeata', water: 'fresh',
+    season: [3,3,3,2,1,1,1,1,2,3,3,3], temp: [16, 28],
+    tod: { dawn: 1, day: 0.4, dusk: 1, night: 0.8 }, tide: 'any',
+    closed: { months: [5, 6, 7], where: 'river', release: true, note: 'Bass & estuary perch closed season in rivers and estuaries 1 Jun – 31 Aug: catch and release only (dams stay open). Check NSW DPI.' },
+    habitat: 'Snags, overhanging trees and rocky banks in coastal rivers; weed edges and points in stocked dams.',
+    baits: ['Live shrimp', 'Crickets / cicadas', 'Scrub worms', 'Small live poddy mullet'],
+    lures: ['Surface fizzers / poppers at dawn, dusk and night', 'Small spinnerbaits', 'Lipless crankbaits', '2–3" soft plastics'],
+    rig: '6–10lb braid with a 10–12lb leader. Unweighted live bait cast tight to snags; lures pitched into cover.',
+    size: null, bag: null,
+    tips: 'Summer evenings with surface lures are magic. Cast right into the snag – bass live in the shade.'
+  },
+  goldenperch: {
+    name: 'Golden Perch (Yellowbelly)', sci: 'Macquaria ambigua', water: 'fresh',
+    season: [3,3,3,2,1,1,0,1,2,3,3,3], temp: [18, 28],
+    tod: { dawn: 0.9, day: 0.6, dusk: 0.9, night: 0.6 }, tide: 'any', rain: true,
+    habitat: 'Inland dams and rivers – drowned timber, rocky points and creek mouths.',
+    baits: ['Live yabbies', 'Live shrimp', 'Scrub worms', 'Bardi grubs'],
+    lures: ['Deep-diving hardbodies trolled or cast', 'Spinnerbaits', 'Lipless crankbaits / blades hopped near timber'],
+    rig: 'Running ball sinker down to a #1–2/0 hook, 10–15lb line. Fish baits right on the bottom among timber.',
+    size: '30 cm', bag: '5',
+    tips: 'A warm spell and a rising river after rain switch them on. Work the edges of standing timber in 3–6 m.'
+  },
+  murraycod: {
+    name: 'Murray Cod', sci: 'Maccullochella peelii', water: 'fresh',
+    season: [3,3,3,3,2,1,1,1,0,0,0,2], temp: [14, 26],
+    tod: { dawn: 0.9, day: 0.5, dusk: 1, night: 0.9 }, tide: 'any', rain: true, moon: true,
+    closed: { months: [8, 9, 10], where: 'all', note: 'Murray cod closed season 1 Sep – 30 Nov (spawning): do not target them. Check NSW DPI.' },
+    habitat: 'Big snags, undercut banks and deep holes in the Murray–Darling rivers and inland dams.',
+    baits: ['Live yabbies', 'Bardi grubs', 'Big scrub worm bunches', 'Cheese / chicken (common local baits)'],
+    lures: ['Large spinnerbaits', 'Big deep-diving hardbodies', 'Surface wake baits at night in summer', 'Swimbaits'],
+    rig: 'Heavy gear: 30–50lb braid, 40–60lb leader, running sinker to a 4/0–8/0 hook or lures slow-rolled past snags.',
+    size: '55–75 cm (slot)', bag: '2',
+    tips: 'Dusk into dark around the biggest snag you can find. Handle with wet hands and support big fish horizontally.'
+  },
+  trout: {
+    name: 'Trout (Rainbow & Brown)', sci: 'Oncorhynchus mykiss / Salmo trutta', water: 'fresh',
+    season: [2,2,3,3,3,2,2,2,2,3,3,2], temp: [8, 18],
+    tod: { dawn: 1, day: 0.5, dusk: 1, night: 0.4 }, tide: 'any',
+    closed: { months: [5, 6, 7, 8], where: 'river', note: 'Trout rivers and streams are closed from the June long weekend to the October long weekend. Lakes like Eucumbene and Jindabyne stay open. Check NSW DPI.' },
+    habitat: 'Cold Snowy Mountains and tableland lakes and streams – drop-offs, weed edges and river inflows.',
+    baits: ['Scrub worms', 'Mudeyes under a float', 'PowerBait dough', 'Wood grubs'],
+    lures: ['Tassie Devils (trolled or cast)', 'Small inline spinners', 'Small soft plastics / minnows', 'Flies: nymphs, woolly buggers, dry flies'],
+    rig: '4–6lb line. Float rig with a mudeye, or a running sinker with a worm off the bottom. Troll Tassie Devils 1–2 km/h.',
+    size: null, bag: null,
+    tips: 'Low light, a light ripple and cold water are best. In summer go deeper or fish the dawn shallows.'
+  },
+  redfin: {
+    name: 'Redfin (English Perch)', sci: 'Perca fluviatilis', water: 'fresh', pest: true,
+    season: [2,2,3,3,2,1,1,1,2,3,3,2], temp: [12, 24],
+    tod: { dawn: 0.9, day: 0.8, dusk: 0.9, night: 0.3 }, tide: 'any',
+    habitat: 'Schools around weed beds, drowned timber and drop-offs in dams and slow rivers.',
+    baits: ['Scrub worms', 'Small yabbies', 'Live shrimp'],
+    lures: ['Small soft plastics', 'Inline spinners', 'Ice jigs / blades jigged vertically'],
+    rig: 'Light gear, 4–6lb. Paternoster rig with worms, or small lures jigged straight down on a school.',
+    size: 'No limit', bag: 'No limit',
+    tips: 'Pest fish – do not release them back alive. Once you find a school, keep jigging the same spot.'
+  },
+  carp: {
+    name: 'European Carp', sci: 'Cyprinus carpio', water: 'fresh', pest: true,
+    season: [3,3,3,2,1,1,1,1,2,3,3,3], temp: [15, 28],
+    tod: { dawn: 0.8, day: 0.8, dusk: 0.8, night: 0.5 }, tide: 'any',
+    habitat: 'Almost every river and dam – muddy bays, shallow flats and slow water.',
+    baits: ['Sweet corn', 'Bread / dough balls', 'Scrub worms'],
+    lures: ['Not a lure fish'],
+    rig: 'Running sinker or float rig, #6–#2 hook. Berley with corn or bread.',
+    size: 'No limit', bag: 'No limit',
+    tips: 'Pest fish – it is illegal to release them alive. Great fun for kids, and they help clean up the river.'
   }
 };

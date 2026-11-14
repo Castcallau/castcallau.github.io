@@ -1,4 +1,4 @@
-// TideLine NSW – UI
+// CastCall NSW – UI
 (function () {
   const F = window.FISH, S = F.scoring, SP = F.SPECIES;
   const TZ = 'Australia/Sydney', H = 3600;
@@ -14,7 +14,7 @@
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   const state = {
-    data: null, analyses: {}, offset: 0, region: 'all', access: 'all', target: '', sort: 'score', search: '',
+    data: null, analyses: {}, offset: 0, region: 'all', access: 'all', water: 'all', target: '', sort: 'score', search: '',
     userPos: null, selected: null, view: 'spots', fetchedAt: null,
     favs: new Set(JSON.parse(localStorage.getItem('fish-favs') || '[]'))
   };
@@ -23,7 +23,7 @@
   const bucket = s => s >= 75 ? 3 : s >= 60 ? 2 : s >= 45 ? 1 : 0;
   const LABEL = ['Poor', 'Fair', 'Good', 'Excellent'];
   const actLabel = a => a >= 0.6 ? 'Firing' : a >= 0.4 ? 'Worth a shot' : a >= 0.2 ? 'Slow' : 'Off season';
-  const TYPE = { rock: 'Rock platform', beach: 'Surf beach', estuary: 'Estuary', harbour: 'Harbour / bay', breakwall: 'Breakwall', offshore: 'Offshore' };
+  const TYPE = { rock: 'Rock platform', beach: 'Surf beach', estuary: 'Estuary', harbour: 'Harbour / bay', breakwall: 'Breakwall', offshore: 'Offshore', dam: 'Dam / lake', river: 'River' };
 
   function wx(code) {
     if (code == null) return ['', '–'];
@@ -85,6 +85,7 @@
     let list = F.LOCATIONS.filter(l => state.analyses[l.id]
       && (state.region === 'all' || (state.region === 'favs' ? state.favs.has(l.id) : l.region === state.region))
       && (state.access === 'all' || l.access.includes(state.access))
+      && (state.water === 'all' || l.water === state.water)
       && (!state.target || l.species.includes(state.target))
       && (!q || (l.name + ' ' + l.region + ' ' + l.species.map(s => SP[s].name).join(' ')).toLowerCase().includes(q)));
     if (state.sort === 'distance' && state.userPos) list.sort((a, b) => distKm(state.userPos, [a.lat, a.lon]) - distKm(state.userPos, [b.lat, b.lon]));
@@ -98,7 +99,10 @@
     if (!state.data) return;
     renderTimeLabel();
     if (state.view === 'spots') { renderList(); renderMap(); if (state.selected) renderDetail(); }
-    else renderSpecies();
+    else if (state.view === 'species') renderSpecies();
+    else if (state.view === 'alerts' && F.alerts) F.alerts.render();
+    else if (state.view === 'log' && F.catchlog) F.catchlog.render();
+    if (F.alerts) F.alerts.check();
   }
 
   function renderTimeLabel() {
@@ -118,7 +122,8 @@
       const a = state.analyses[l.id], h = hourOf(l.id), b = bucket(h.score);
       const top = h.species.filter(s => s.act >= 0.25).slice(0, 3).map(s => SP[s.id].name.replace(/ \(.+\)/, ''));
       const w = nextWindow(a, h.t);
-      const tide = h.tide ? `${h.tide.state}${h.tide.next ? ` · ${h.tide.next.type === 'high' ? 'H' : 'L'} ${tm(h.tide.next.t)}` : ''}` : 'Tide n/a';
+      const tide = h.fresh ? `🌧️ ${h.rain48.toFixed(0)} mm / 48 h`
+        : h.tide ? `${h.tide.state}${h.tide.next ? ` · ${h.tide.next.type === 'high' ? 'H' : 'L'} ${tm(h.tide.next.t)}` : ''}` : 'Tide n/a';
       const dist = state.userPos ? ` · ${Math.round(distKm(state.userPos, [l.lat, l.lon]))} km` : '';
       return `<button class="card${state.selected === l.id ? ' active' : ''}" data-id="${l.id}">
         <div class="score s${b}" aria-label="Score ${h.score} out of 100, ${LABEL[b]}"><span>${h.score}</span><small>${LABEL[b]}</small></div>
@@ -127,13 +132,14 @@
           <div class="card-sub">${esc(l.region)} · ${TYPE[l.type]} · ${l.access.map(x => x === 'land' ? 'Land' : 'Boat').join(' / ')}${dist}</div>
           <div class="card-cond">
             <span title="Wind">${arrow(h.windDir)} ${Math.round(h.wind)} km/h</span>
-            <span title="Swell">🌊 ${n1(h.wave)} m</span>
-            <span title="Sea temperature">🌡️ ${h.sst == null ? '–' : h.sst.toFixed(0) + '°'}</span>
+            ${h.fresh ? '<span title="Freshwater">💧 Fresh</span>' : `<span title="Swell">🌊 ${n1(h.wave)} m</span>`}
+            <span title="${h.fresh ? 'Estimated water temperature' : 'Sea temperature'}">🌡️ ${h.sst == null ? '–' : h.sst.toFixed(0) + '°'}</span>
             <span title="Tide">${tide}</span>
           </div>
           <div class="card-fish">${top.length ? '🎣 ' + top.join(', ') : '<span class="muted">Quiet – nothing much in season</span>'}</div>
           ${w ? `<div class="card-win">Best: ${day(w.start)} ${hr(w.start)}–${hr(w.end)} (${w.peak})</div>` : ''}
           ${h.warnings.length ? `<div class="card-warn">⚠️ ${esc(h.warnings[0])}</div>` : ''}
+          ${h.closures.length ? `<div class="card-closed">⛔ Closed season for ${h.species.filter(s => s.closed).map(s => SP[s.id].name.split(' (')[0]).join(', ')}</div>` : ''}
         </div></button>`;
     }).join('');
   }
@@ -203,6 +209,11 @@
         </div>
       </div>
       ${h.warnings.length ? `<div class="warn-box" role="alert">${h.warnings.map(w => `<div>⚠️ ${esc(w)}</div>`).join('')}</div>` : ''}
+      ${h.closures.length ? `<div class="closed-box">${h.closures.map(c => `<div>⛔ ${esc(c)}</div>`).join('')}</div>` : ''}
+      <div class="d-buttons">
+        <button class="btn" id="d-alert">🔔 Alert me for this spot</button>
+        <button class="btn" id="d-log">📓 Log a catch here</button>
+      </div>
 
       <section>
         <h3>Best times – next 3 days</h3>
@@ -216,20 +227,24 @@
         <div class="cond-grid">
           <div><span class="c-k">Weather</span><span class="c-v">${icon} ${Math.round(h.temp)}°C</span><span class="c-s">${wdesc}${h.rainProb != null ? ` · ${h.rainProb}% rain` : ''}</span></div>
           <div><span class="c-k">Wind</span><span class="c-v">${arrow(h.windDir)} ${Math.round(h.wind)} km/h</span><span class="c-s">${S.compass(h.windDir)} · gusts ${Math.round(h.gust)}</span></div>
+          ${h.fresh ? `
+          <div><span class="c-k">Rain (48 h)</span><span class="c-v">${h.rain48.toFixed(0)} mm</span><span class="c-s">${l.type === 'river' ? (h.rain48 > 60 ? 'river likely flooding' : h.rain48 >= 3 ? 'river freshening' : 'normal flow') : 'inflow to the dam'}</span></div>
+          <div><span class="c-k">Water temp</span><span class="c-v">${h.sst == null ? '–' : h.sst.toFixed(0) + '°C'}</span><span class="c-s">estimate from air temp</span></div>
+          <div><span class="c-k">Water</span><span class="c-v">Fresh</span><span class="c-s">${TYPE[l.type]} · no tide</span></div>` : `
           <div><span class="c-k">Swell</span><span class="c-v">${n1(h.wave)} m</span><span class="c-s">${h.period != null ? h.period.toFixed(0) + ' s period' : 'no data'}</span></div>
           <div><span class="c-k">Sea temp</span><span class="c-v">${h.sst == null ? '–' : h.sst.toFixed(1) + '°C'}</span><span class="c-s">surface</span></div>
-          <div><span class="c-k">Tide</span><span class="c-v">${h.tide ? h.tide.state : '–'}</span><span class="c-s">${h.tide && h.tide.next ? `${h.tide.next.type === 'high' ? 'High' : 'Low'} at ${tm(h.tide.next.t)}` : 'no data'}</span></div>
+          <div><span class="c-k">Tide</span><span class="c-v">${h.tide ? h.tide.state : '–'}</span><span class="c-s">${h.tide && h.tide.next ? `${h.tide.next.type === 'high' ? 'High' : 'Low'} at ${tm(h.tide.next.t)}` : 'no data'}</span></div>`}
           <div><span class="c-k">Pressure</span><span class="c-v">${pressure == null ? '–' : Math.round(pressure)} hPa</span><span class="c-s">${pressureTrend(l.id, h.i)}</span></div>
           <div><span class="c-k">Moon</span><span class="c-v">${h.moon.icon} ${Math.round(h.moon.illum * 100)}%</span><span class="c-s">${h.moon.name}</span></div>
           <div><span class="c-k">Sun</span><span class="c-v">↑ ${tm(h.light.rise)}</span><span class="c-s">↓ ${tm(h.light.set)}</span></div>
         </div>
       </section>
 
-      <section>
+      ${h.fresh ? '' : `<section>
         <h3>Tides</h3>
         <div class="chart" id="tide-chart">${tideChart(l, a)}</div>
         <div class="caption">Modelled tide (height vs mean sea level), adjusted for ${l.tideLag ? `a ~${l.tideLag} min lag inside the estuary` : 'the open coast'}. Check BOM tide tables for exact times.</div>
-      </section>
+      </section>`}
 
       <section>
         <h3>Target species ${state.offset === 0 ? 'right now' : 'at this time'}</h3>
@@ -255,6 +270,8 @@
       render();
     };
     $('#detail').querySelectorAll('.win').forEach(btn => btn.onclick = () => jumpTo(Number(btn.dataset.t)));
+    $('#d-alert').onclick = () => { setView('alerts'); F.alerts && F.alerts.prefill(l.id); };
+    $('#d-log').onclick = () => { setView('log'); F.catchlog && F.catchlog.prefill(l.id); };
     bindChart('#score-chart', k => {
       const x = a.hours[k];
       return `<b>${day(x.t)} ${hr(x.t)}</b><br>Score ${x.score} · ${LABEL[bucket(x.score)]}<br>${arrow(x.windDir)} ${Math.round(x.wind)} km/h · 🌊 ${n1(x.wave)} m<br>${x.tide ? x.tide.state + ' tide' : ''}`;
@@ -281,12 +298,16 @@
   function speciesCard(s, h, open) {
     const sp = SP[s.id];
     const chips = [];
+    if (s.closed) chips.push(`<span class="chip bad">⛔ ${s.closed.release ? 'Catch & release only' : 'Closed season'}</span>`);
+    if (sp.pest) chips.push('<span class="chip bad">Pest – don\'t release alive</span>');
     if (s.season >= 1) chips.push('<span class="chip good">Peak season</span>');
     else if (s.season >= 0.6) chips.push('<span class="chip">In season</span>');
     else chips.push('<span class="chip bad">Out of season</span>');
     if (h.sst != null) chips.push(`<span class="chip ${s.tempFit === 1 ? 'good' : 'bad'}">Water ${h.sst.toFixed(0)}° ${s.tempFit === 1 ? 'in range' : `(likes ${sp.temp[0]}–${sp.temp[1]}°)`}</span>`);
-    const tideTxt = { rising: 'Prefers rising tide', falling: 'Prefers run-out tide', change: 'Bites on the tide change', any: 'Any tide' }[sp.tide];
-    chips.push(`<span class="chip ${s.tidePref === 1 ? 'good' : ''}">${tideTxt}</span>`);
+    if (!h.fresh) {
+      const tideTxt = { rising: 'Prefers rising tide', falling: 'Prefers run-out tide', change: 'Bites on the tide change', any: 'Any tide' }[sp.tide];
+      chips.push(`<span class="chip ${s.tidePref === 1 ? 'good' : ''}">${tideTxt}</span>`);
+    } else if (sp.rain) chips.push('<span class="chip">Likes a rise after rain</span>');
     if (s.tod >= 0.9) chips.push(`<span class="chip good">Good ${h.light.cat} bite</span>`);
     return `<details class="sp" ${open ? 'open' : ''}>
       <summary>
@@ -300,10 +321,16 @@
         <dt>Lures</dt><dd>${sp.lures.map(esc).join(' · ')}</dd>
         <dt>Rig</dt><dd>${esc(sp.rig)}</dd>
         <dt>Where</dt><dd>${esc(sp.habitat)}</dd>
-        <dt>Size / bag</dt><dd>${sp.size ? `Min ${sp.size}, bag ${sp.bag}` : 'Check current NSW DPI rules'} <span class="muted">(guide only – verify with NSW DPI)</span></dd>
+        <dt>Size / bag</dt><dd>${sizeTxt(sp)} <span class="muted">(guide only – verify with NSW DPI)</span></dd>
       </dl>
       <p class="tip">💡 ${esc(sp.tips)}</p>
     </details>`;
+  }
+
+  function sizeTxt(sp) {
+    if (!sp.size) return 'Check current NSW DPI rules';
+    if (sp.size === 'No limit') return 'No size or bag limit';
+    return `${/^\d+ cm$/.test(sp.size) ? 'Min ' : ''}${sp.size}, bag ${sp.bag}`;
   }
 
   function hourlyTable(a) {
@@ -413,7 +440,7 @@
     const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const SEASON = ['Rare', 'Some around', 'Good', 'Peak'];
     const cur = new Date().getMonth();
-    $('#species-grid').innerHTML = Object.entries(SP).map(([id, sp]) => {
+    const card = ([id, sp]) => {
       const spots = F.LOCATIONS.filter(l => l.species.includes(id) && state.analyses[l.id]).map(l => {
         const h = hourOf(l.id), s = h.species.find(x => x.id === id);
         return { l, act: s ? s.act : 0, score: h.score };
@@ -428,20 +455,25 @@
           <dt>Baits</dt><dd>${sp.baits.map(esc).join(' · ')}</dd>
           <dt>Lures</dt><dd>${sp.lures.map(esc).join(' · ')}</dd>
           <dt>Rig</dt><dd>${esc(sp.rig)}</dd>
-          <dt>Size / bag</dt><dd>${sp.size ? `Min ${sp.size}, bag ${sp.bag}` : 'Check NSW DPI'}</dd>
+          <dt>Size / bag</dt><dd>${sizeTxt(sp)}</dd>
         </dl>
+        ${sp.closed ? `<p class="closed-box small">⛔ ${esc(sp.closed.note)}</p>` : ''}
         <p class="tip">💡 ${esc(sp.tips)}</p>
         ${spots.length ? `<div class="sp-spots"><b>Best spots ${state.offset === 0 ? 'now' : 'at selected time'}:</b> ${spots.map(x => `<button class="link" data-goto="${x.l.id}">${esc(x.l.name.split(' – ')[0])} (${x.score})</button>`).join(', ')}</div>` : ''}
       </article>`;
-    }).join('');
+    };
+    const all = Object.entries(SP);
+    $('#species-grid').innerHTML =
+      `<h2 class="grp">🌊 Saltwater</h2><div class="species-grid">${all.filter(([, s]) => s.water !== 'fresh').map(card).join('')}</div>
+       <h2 class="grp">💧 Freshwater</h2><div class="species-grid">${all.filter(([, s]) => s.water === 'fresh').map(card).join('')}</div>`;
     document.querySelectorAll('[data-goto]').forEach(b => b.onclick = () => { setView('spots'); select(b.dataset.goto); });
   }
 
   function setView(v) {
     state.view = v;
     document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', t.dataset.view === v));
-    $('#view-spots').hidden = v !== 'spots';
-    $('#view-species').hidden = v !== 'species';
+    for (const k of ['spots', 'species', 'alerts', 'log']) $('#view-' + k).hidden = v !== k;
+    document.querySelector('.controls').hidden = v === 'alerts' || v === 'log';
     render();
     if (v === 'spots' && map) setTimeout(() => map.invalidateSize(), 0);
   }
@@ -461,6 +493,7 @@
     };
     $('#search').oninput = e => { state.search = e.target.value; render(); };
     document.querySelectorAll('[name=access]').forEach(r => r.onchange = e => { state.access = e.target.value; compute(); render(); });
+    document.querySelectorAll('[name=water]').forEach(r => r.onchange = e => { state.water = e.target.value; render(); });
     $('#locate').onclick = locate;
     $('#refresh').onclick = () => load(true);
     $('#retry').onclick = () => load(true);
@@ -470,6 +503,9 @@
 
     initMap();
     load(false);
+    if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+      navigator.serviceWorker.register('sw.js').catch(e => console.warn('Service worker not registered', e));
+    }
     setInterval(() => { if (state.data) { compute(); render(); } }, 10 * 60 * 1000);
   }
 
@@ -489,6 +525,10 @@
       render();
     }, { timeout: 10000 });
   }
+
+  // Shared helpers for alerts.js and catchlog.js
+  F.ui = { state, tm, hr, day, esc, select, setView, render, bucket, LABEL, TYPE, wx, arrow, n1, sizeTxt,
+    jumpTo, showError, findLoc: id => F.LOCATIONS.find(l => l.id === id) };
 
   document.addEventListener('DOMContentLoaded', init);
 })();

@@ -2,7 +2,7 @@
 // Weather: https://open-meteo.com/en/docs   Marine (swell, sea temp, tide): https://open-meteo.com/en/docs/marine-weather-api
 window.FISH = window.FISH || {};
 (function () {
-  const CACHE_KEY = 'fish-cache-v2';
+  const CACHE_KEY = 'fish-cache-v3';
   const TTL = 30 * 60 * 1000; // 30 minutes
 
   const WEATHER_VARS = 'temperature_2m,precipitation_probability,precipitation,weather_code,cloud_cover,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m';
@@ -73,7 +73,8 @@ window.FISH = window.FISH || {};
         url('https://api.open-meteo.com/v1/forecast', pts, wq),
         url('https://historical-forecast-api.open-meteo.com/v1/forecast', pts, wq) // mirror of the same forecast
       ];
-      const marineUrl = url('https://marine-api.open-meteo.com/v1/marine', locations.map(l => l.sea), `hourly=${MARINE_VARS}&cell_selection=sea`);
+      const salt = locations.filter(l => l.sea);
+      const marineUrl = url('https://marine-api.open-meteo.com/v1/marine', salt.map(l => l.sea), `hourly=${MARINE_VARS}&cell_selection=sea`);
 
       const [weather, marine] = await Promise.all([
         getJSON(weatherUrls),
@@ -81,10 +82,13 @@ window.FISH = window.FISH || {};
       ]);
 
       const data = {};
-      locations.forEach((l, i) => { data[l.id] = merge(weather[i], marine ? marine[i] : null); });
+      locations.forEach((l, i) => {
+        const mi = salt.indexOf(l);
+        data[l.id] = merge(weather[i], marine && mi >= 0 ? marine[mi] : null);
+      });
       const at = Date.now();
       try { localStorage.setItem(CACHE_KEY, JSON.stringify({ at, ids: locations.map(l => l.id).join(), data })); } catch (e) { /* storage full */ }
-      return { data, at, cached: false, marineOk: !!marine };
+      return { data, at, cached: false, marineOk: !!marine || !salt.length };
     }
   };
 })();

@@ -1,4 +1,4 @@
-# Tiny static web server for TideLine NSW (no install needed).
+# Tiny static web server for CastCall NSW (no install needed).
 # Run:  powershell -ExecutionPolicy Bypass -File serve.ps1   then open http://localhost:8080
 param([int]$Port = 8080)
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -7,7 +7,7 @@ $types = @{ '.html'='text/html; charset=utf-8'; '.js'='text/javascript; charset=
 $listener = New-Object System.Net.HttpListener
 $listener.Prefixes.Add("http://localhost:$Port/")
 $listener.Start()
-Write-Host "TideLine NSW running at http://localhost:$Port  (Ctrl+C to stop)"
+Write-Host "CastCall NSW running at http://localhost:$Port  (Ctrl+C to stop)"
 try {
   while ($listener.IsListening) {
     $ctx = $listener.GetContext()

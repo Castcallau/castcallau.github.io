@@ -1,6 +1,8 @@
-# TideLine NSW – Fishing Forecast
+# CastCall NSW – Fishing Forecast
 
-Ranks 31 NSW saltwater spots (land-based and boat/kayak) by how good the fishing should be, hour by hour, for the next 3 days.
+Ranks 45 NSW saltwater and freshwater spots (land-based and boat/kayak) by how good the fishing should be, hour by hour, for the next 3 days.
+Also has fishing alerts (browser notifications + calendar reminders) and a catch log that saves the conditions with every fish.
+Live site: https://lapennaa07-dotcom.github.io/tideline-nsw/
 
 ## Run it
 - **Easiest:** double-click `index.html`.

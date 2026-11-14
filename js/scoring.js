@@ -87,12 +87,33 @@ window.FISH = window.FISH || {};
     breakwall: hs => hs < 0.5 ? 0.85 : hs <= 2 ? 1 : hs <= 3 ? 0.5 : 0.2,
     beach: hs => hs < 0.4 ? 0.6 : hs <= 1.6 ? 1 : hs <= 2.5 ? 0.6 : 0.3,
     offshore: hs => hs < 1.2 ? 1 : hs <= 2 ? 0.75 : hs <= 3 ? 0.35 : 0.1,
-    harbour: () => 1, estuary: () => 1
+    harbour: () => 1, estuary: () => 1, dam: () => 1, river: () => 1
   };
+
+  function closedFor(sp, month, type) {
+    const c = sp.closed;
+    if (!c || !c.months.includes(month)) return null;
+    if (c.where === 'river' && type !== 'river' && type !== 'estuary') return null;
+    return c;
+  }
+
+  // Freshwater: estimate water temp from the last 3 days of air temperature.
+  function estWaterTemp(d, i) {
+    let s = 0, n = 0;
+    for (let k = Math.max(0, i - 72); k <= i; k++) if (d.temp[k] != null) { s += d.temp[k]; n++; }
+    return n ? s / n : null;
+  }
+  function rainLast(d, i, hours) {
+    let s = 0;
+    for (let k = Math.max(0, i - hours); k <= i; k++) s += d.rain[k] || 0;
+    return s;
+  }
 
   function speciesActivity(sp, ctx) {
     const season = sp.season[ctx.month] / 3;
     if (sp.northOf && ctx.lat < sp.northOf) return { act: 0, season: 0 };
+    const closed = closedFor(sp, ctx.month, ctx.type);
+    if (closed && !closed.release) return { act: 0, season, tempFit: 0, tod: 0, tidePref: 0, closed };
     let tempFit = 0.8;
     if (ctx.sst != null) {
       const [lo, hi] = sp.temp;
@@ -108,14 +129,17 @@ window.FISH = window.FISH || {};
     let extra = 1;
     if (sp.whiteWater && ctx.wave != null && (ctx.type === 'rock' || ctx.type === 'beach' || ctx.type === 'breakwall')) extra *= ctx.wave >= 0.7 && ctx.wave <= 2 ? 1.08 : 0.9;
     if (sp.moon && ctx.moon.nearNewFull) extra *= 1.1;
+    if (sp.rain && ctx.riverRising) extra *= 1.12;
     const act = clamp(Math.pow(Math.max(season, 0.05), 0.8) * tempFit * (0.45 + 0.55 * tod) * (0.6 + 0.4 * tidePref) * extra, 0, 1);
-    return { act, season, tempFit, tod, tidePref };
+    return { act, season, tempFit, tod, tidePref, closed };
   }
 
   function scoreHour(loc, d, i, ext, opts) {
     const t = d.times[i];
-    const lt = light(d, t), m = moon(t), tide = tideAt(ext, t);
-    const sst = d.sst[i] ?? nearest(d.sst, i), wave = d.wave[i] ?? nearest(d.wave, i);
+    const fresh = loc.water === 'fresh';
+    const lt = light(d, t), m = moon(t), tide = fresh ? null : tideAt(ext, t);
+    const sst = fresh ? estWaterTemp(d, i) : (d.sst[i] ?? nearest(d.sst, i));
+    const wave = fresh ? null : (d.wave[i] ?? nearest(d.wave, i));
     const reasons = [], warnings = [];
 
     // Light
@@ -125,8 +149,16 @@ window.FISH = window.FISH || {};
     if (lt.cat === 'dusk') reasons.push({ g: 2, txt: 'Dusk bite window' });
 
     // Tide
-    let fTide = 0.6;
-    if (tide) {
+    let fTide = 0.6, fFlow = 0.75, riverRising = false, rain48 = 0;
+    if (fresh) {
+      rain48 = rainLast(d, i, 48);
+      if (loc.type === 'river') {
+        if (rain48 >= 3 && rain48 <= 25) { fFlow = 1; riverRising = true; reasons.push({ g: 2, txt: `River freshening after ${rain48.toFixed(0)} mm of rain – fish on the move` }); }
+        else if (rain48 > 60) { fFlow = 0.45; reasons.push({ g: -2, txt: `${rain48.toFixed(0)} mm of rain in 48 h – river likely high and dirty` }); }
+        else if (rain48 > 25) { fFlow = 0.75; riverRising = true; reasons.push({ g: 0, txt: `${rain48.toFixed(0)} mm of rain in 48 h – river up and coloured` }); }
+        else fFlow = 0.7;
+      } else if (rain48 >= 5 && rain48 <= 40) { fFlow = 0.9; riverRising = true; reasons.push({ g: 1, txt: 'Fresh inflow from recent rain' }); }
+    } else if (tide) {
       fTide = tide.dChange <= 1.5 ? 1 : tide.dChange <= 3 ? 0.75 : 0.65;
       if ((loc.type === 'estuary' || loc.type === 'harbour') && tide.rising) fTide = Math.min(1, fTide + 0.1);
       if (tide.dChange <= 1.5) reasons.push({ g: 2, txt: `Tide change ${tide.next && (tide.next.t - t) / H <= 1.5 ? 'coming up' : 'just happened'} – water starting to move` });
@@ -184,22 +216,28 @@ window.FISH = window.FISH || {};
     let fMoon = sol.score + (m.nearNewFull ? 0.1 : 0);
     if (sol.label) reasons.push({ g: sol.score === 1 ? 1 : 0, txt: sol.label + ' (approx.)' });
 
-    const env = (0.26 * fTide + 0.24 * fLight + 0.22 * fWind + 0.1 * fSwell + 0.1 * fPress + 0.08 * Math.min(1, fMoon)) * fRain;
+    const env = (fresh
+      ? 0.2 * fFlow + 0.3 * fLight + 0.2 * fWind + 0.15 * fPress + 0.15 * Math.min(1, fMoon)
+      : 0.26 * fTide + 0.24 * fLight + 0.22 * fWind + 0.1 * fSwell + 0.1 * fPress + 0.08 * Math.min(1, fMoon)) * fRain;
 
     // Species
-    const ctx = { month: monthOf(t), sst, wave, light: lt, tide, moon: m, type: loc.type, lat: loc.lat };
-    const species = loc.species.map(id => ({ id, ...speciesActivity(FISH.SPECIES[id], ctx) })).sort((a, b) => b.act - a.act);
+    const ctx = { month: monthOf(t), sst, wave, light: lt, tide, moon: m, type: loc.type, lat: loc.lat, riverRising };
+    // Pest fish (carp, redfin) are still listed but ranked below the real target species.
+    const rank = s => s.act * (FISH.SPECIES[s.id].pest ? 0.6 : 1);
+    const species = loc.species.map(id => ({ id, ...speciesActivity(FISH.SPECIES[id], ctx) })).sort((a, b) => rank(b) - rank(a));
+    const closures = [...new Set(species.filter(s => s.closed).map(s => s.closed.note))];
     let spFactor;
     if (opts.target && loc.species.includes(opts.target)) spFactor = species.find(s => s.id === opts.target).act;
-    else spFactor = species.slice(0, 2).reduce((s, x) => s + x.act, 0) / Math.min(2, species.length);
+    else spFactor = species.slice(0, 2).reduce((s, x) => s + rank(x), 0) / Math.min(2, species.length);
 
     // Power curve spreads the scale so only genuinely prime windows reach "Excellent".
     const score = Math.round(Math.min(cap, 100 * Math.pow(clamp(0.55 * env + 0.45 * spFactor, 0, 1), 1.8)));
     return {
       t, i, score, env, light: lt, tide, moon: m, sst, wave, wind: ws, windDir: wd, gust,
       temp: d.temp[i], rain, rainProb: d.rainProb[i], code, cloud: d.cloud[i], swell: d.swell[i], period: d.period[i],
-      species, reasons: reasons.sort((a, b) => b.g - a.g), warnings,
-      parts: { Tide: fTide, Light: fLight, Wind: fWind, Swell: fSwell, Pressure: fPress, Moon: Math.min(1, fMoon) }
+      species, reasons: reasons.sort((a, b) => b.g - a.g), warnings, closures, fresh, rain48,
+      parts: fresh ? { Flow: fFlow, Light: fLight, Wind: fWind, Pressure: fPress, Moon: Math.min(1, fMoon) }
+        : { Tide: fTide, Light: fLight, Wind: fWind, Swell: fSwell, Pressure: fPress, Moon: Math.min(1, fMoon) }
     };
   }
 
@@ -230,6 +268,13 @@ window.FISH = window.FISH || {};
 
   FISH.scoring = {
     compass, moon,
+    // Conditions at any time inside the downloaded data (yesterday → +3 days); null if outside it.
+    at(loc, d, t, opts = {}) {
+      if (!d || !d.times.length || t < d.times[0] - H || t > d.times[d.times.length - 1] + H) return null;
+      let i = 0, best = Infinity;
+      d.times.forEach((x, k) => { const dist = Math.abs(x - t); if (dist < best) { best = dist; i = k; } });
+      return scoreHour(loc, d, i, tideExtremes(d, loc.tideLag), opts);
+    },
     analyse(loc, d, nowT, opts = {}) {
       const ext = tideExtremes(d, loc.tideLag);
       let start = d.times.findIndex(t => t > nowT - H);
