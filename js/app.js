@@ -402,6 +402,8 @@
         <div class="caption"><span class="nowrap"><span class="key line-key wind-key"></span> Wind</span> <span class="nowrap"><span class="key line-key gust-key"></span> Gusts</span> <span>· arrows show which way it's blowing · dashed line = getting choppy for small boats</span></div>
       </section>
 
+      ${F.depth ? F.depth.sectionHtml(l) : ''}
+
       ${timesSection(l, a, h)}
 
       ${h.fresh ? '' : `<section>
@@ -430,6 +432,7 @@
       </section>`);
 
     $('#close').onclick = () => closeDetail(false);
+    if (F.depth) F.depth.mount(l);
     $('#fav').onclick = () => {
       state.favs.has(l.id) ? state.favs.delete(l.id) : state.favs.add(l.id);
       localStorage.setItem('fish-favs', JSON.stringify([...state.favs]));

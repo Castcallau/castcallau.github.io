@@ -16,10 +16,11 @@ try {
     if ($path -eq 'proxy') {
       # Fallback for networks/browsers that block direct calls: only Open-Meteo hosts are allowed.
       $target = [Uri]$ctx.Request.QueryString['url']
-      if ($target.Scheme -eq 'https' -and $target.Host -match '^(api|marine-api)\.open-meteo\.com$') {
+      if ($target.Scheme -eq 'https' -and $target.Host -match '^(api|marine-api|historical-forecast-api)\.open-meteo\.com$') {
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         $req = [Net.HttpWebRequest]::Create($target)
-        $req.Timeout = 40000; $req.ReadWriteTimeout = 40000
+        $req.Timeout = 90000; $req.ReadWriteTimeout = 90000
+        $req.AutomaticDecompression = [Net.DecompressionMethods]::GZip -bor [Net.DecompressionMethods]::Deflate
         $resp = $req.GetResponse(); $ms = New-Object IO.MemoryStream
         $resp.GetResponseStream().CopyTo($ms); $resp.Close(); $bytes = $ms.ToArray()
         $ctx.Response.ContentType = 'application/json'

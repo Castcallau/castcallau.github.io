@@ -35,7 +35,7 @@ window.FISH = window.FISH || {};
     let last;
     for (const u of urls) { try { return await fetchJSON(u, 25000); } catch (e) { last = e; } }
     if (location.hostname === 'localhost') {
-      for (const u of urls.slice().reverse()) { try { return await fetchJSON('/proxy?url=' + encodeURIComponent(u), 45000); } catch (e) { last = e; } }
+      for (const u of urls.slice().reverse()) { try { return await fetchJSON('/proxy?url=' + encodeURIComponent(u), 95000); } catch (e) { last = e; } }
     }
     throw last;
   }
