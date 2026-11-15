@@ -154,12 +154,29 @@
   // ---------------- Render ----------------
   function render() {
     if (!state.data) return;
+    clearTimeout(slowTimer);
     renderTimeLabel();
     if (state.view === 'spots') { renderList(); renderMap(); if (state.selected) renderDetail(); }
     else if (state.view === 'species') renderSpecies();
     else if (state.view === 'alerts' && F.alerts) F.alerts.render();
     else if (state.view === 'log' && F.catchlog) F.catchlog.render();
     if (F.alerts) F.alerts.check();
+  }
+
+  // Smooth slider: while you drag, redraw only the cheap parts (time, list, map pins) once per frame,
+  // and redraw the heavy spot details/charts once you pause. This is what made phones feel laggy.
+  let frameQueued = false, slowTimer = null;
+  function renderWhileDragging() {
+    if (frameQueued) return;
+    frameQueued = true;
+    requestAnimationFrame(() => {
+      frameQueued = false;
+      if (!state.data) return;
+      renderTimeLabel();
+      if (state.view === 'spots') { renderList(); renderMap(); }
+      clearTimeout(slowTimer);
+      slowTimer = setTimeout(render, 160);
+    });
   }
 
   function renderTimeLabel() {
@@ -200,6 +217,9 @@
 
   function renderList() {
     const list = visibleLocations();
+    // New search or filter? Go back to showing the top 30.
+    const sig = [state.region, state.access, state.water, state.target, state.sort, state.search].join('|');
+    if (sig !== state.listSig) { state.listSig = sig; state.listLimit = 30; }
     $('#count').textContent = `${list.length} spot${list.length === 1 ? '' : 's'}`;
     if (!list.length) {
       $('#list').innerHTML = state.search.trim()
@@ -208,7 +228,9 @@
       const b = $('#empty-pin'); if (b) b.onclick = () => $('#pin-start').click();
       return;
     }
-    $('#list').innerHTML = convertUnits(list.map((l, rank) => {
+    // Draw the top spots first; the rest appear when you tap "Show more" (drawing all 119 cards every time was slow).
+    const limit = state.listLimit || 30, shown = list.slice(0, limit), more = list.length - shown.length;
+    $('#list').innerHTML = convertUnits(shown.map((l, rank) => {
       curTZ = l.tz;
       const a = state.analyses[l.id], h = hourOf(l.id), b = bucket(h.score);
       const top = rank === 0 && state.sort === 'score' && list.length > 1;
@@ -233,7 +255,9 @@
           ${h.warnings.length ? `<div class="card-warn">⚠️ ${esc(h.warnings[0])}</div>` : ''}
           ${h.closures.length ? `<div class="card-closed">⛔ Closed season for ${h.species.filter(s => s.closed).map(s => SP[s.id].name.split(' (')[0]).join(', ')}</div>` : ''}
         </div></button>`;
-    }).join(''));
+    }).join('') + (more > 0 ? `<button class="btn show-more" id="show-more" type="button">Show ${Math.min(more, 30)} more spots (${more} left)</button>` : ''));
+    const sm = $('#show-more');
+    if (sm) sm.onclick = () => { state.listLimit = limit + 30; renderList(); };
   }
 
   function initMap() {
@@ -278,8 +302,13 @@
       const m = markers[l.id], h = hourOf(l.id);
       if (!vis.has(l.id) || !h) { if (map.hasLayer(m)) map.removeLayer(m); continue; }
       if (!map.hasLayer(m)) m.addTo(map);
-      m.setIcon(L.divIcon({ className: '', html: `<div class="pin s${bucket(h.score)}${state.selected === l.id ? ' sel' : ''}${l.pin ? ' mine' : ''}">${h.score}</div>`, iconSize: [32, 32], iconAnchor: [16, 16] }));
-      m.setZIndexOffset(h.score * 10);
+      // Only rebuild a pin when its score/state actually changed (rebuilding 119 pins every frame was slow).
+      const html = `<div class="pin s${bucket(h.score)}${state.selected === l.id ? ' sel' : ''}${l.pin ? ' mine' : ''}">${h.score}</div>`;
+      if (m._ccHtml !== html) {
+        m._ccHtml = html;
+        m.setIcon(L.divIcon({ className: '', html, iconSize: [32, 32], iconAnchor: [16, 16] }));
+        m.setZIndexOffset(h.score * 10);
+      }
     }
   }
 
@@ -765,7 +794,7 @@
     $('#region').value = state.region;
     $('#target').innerHTML = `<option value="">Any species</option>` + Object.entries(SP).sort((a, b) => a[1].name.localeCompare(b[1].name)).map(([id, s]) => `<option value="${id}">${s.name}</option>`).join('');
 
-    $('#time').oninput = e => { state.offset = Number(e.target.value); render(); };
+    $('#time').oninput = e => { state.offset = Number(e.target.value); renderWhileDragging(); };
     $('#now-btn').onclick = () => { state.offset = 0; $('#time').value = 0; render(); };
     $('#region').onchange = e => { state.region = e.target.value; render(); };
     $('#target').onchange = e => setTarget(e.target.value);

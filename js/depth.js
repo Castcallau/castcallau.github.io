@@ -121,26 +121,112 @@ window.FISH = window.FISH || {};
     return update;
   }
 
-  let mini = null, miniFor = null, miniEl = null, markersLayer = null, overlays = [];
+  // ---------- Clean, pre-saved depth images ----------
+  // Each NSW spot ships with a 1.4 km depth image (depthmaps/<id>.png) saved from the survey server. The server's
+  // colour scale changes from image to image, so each one is calibrated against that spot's 81 saved depth
+  // readings, then redrawn in nautical blues. Water shallower than 0.6 m is left clear so it never paints over
+  // beaches or the shoreline, and tapping reads the depth straight from the image – no waiting on the server.
+  const RM = 20037508.34, HALF = 700;
+  const merc = (la, lo) => [lo * RM / 180, Math.log(Math.tan((90 + la) * Math.PI / 360)) / (Math.PI / 180) * RM / 180];
+  const unmerc = (x, y) => [Math.atan(Math.exp(y / RM * Math.PI)) * 360 / Math.PI - 90, x / RM * 180];
+  const colourKey = (r, g, b) => g + Math.max(0, 230 - r) + 0.3 * b;   // rises steadily from shallow (red) to deep (yellow → blue)
+  const STOPS = [[0.6, [205, 226, 251]], [2, [158, 197, 244]], [4, [109, 167, 236]], [7, [57, 135, 229]], [10, [42, 120, 214]],
+    [15, [37, 106, 191]], [20, [33, 98, 180]], [30, [30, 88, 166]], [45, [24, 79, 149]]];
+  function depthColour(d) {
+    if (d <= STOPS[0][0]) return STOPS[0][1];
+    for (let k = 1; k < STOPS.length; k++) if (d <= STOPS[k][0]) {
+      const [d0, c0] = STOPS[k - 1], [d1, c1] = STOPS[k], t = (d - d0) / (d1 - d0);
+      return c0.map((v, i) => Math.round(v + (c1[i] - v) * t));
+    }
+    return STOPS[STOPS.length - 1][1];
+  }
+  const staticCache = {};
+  async function staticDepth(l, g) {
+    if (staticCache[l.id] !== undefined) return staticCache[l.id];
+    const h = HALF / Math.cos(l.lat * Math.PI / 180), [cx, cy] = merc(l.lat, l.lon), W = 640;
+    const img = new Image(); img.src = `depthmaps/${l.id}.png`;
+    try { await new Promise((res, rej) => { img.onload = res; img.onerror = rej; }); } catch (e) { return (staticCache[l.id] = null); }
+    const c = document.createElement('canvas'); c.width = W; c.height = W;
+    const ctx = c.getContext('2d'); ctx.drawImage(img, 0, 0, W, W);
+    const px = ctx.getImageData(0, 0, W, W), d = px.data;
+    const toPix = (la, lo) => { const [x, y] = merc(la, lo); return [Math.floor((x - (cx - h)) / (2 * h) * W), Math.floor(((cy + h) - y) / (2 * h) * W)]; };
+    // calibration pairs: colour key at each saved reading -> its real depth
+    const pairs = [], n = g.n, mid = (n - 1) / 2;
+    g.d.forEach((v, k) => {
+      if (v == null || v > 0) return;
+      const i = Math.floor(k / n), j = k % n;
+      const [x, y] = toPix(l.lat + (i - mid) * g.step / 111320, l.lon + (j - mid) * g.step / (111320 * Math.cos(l.lat * Math.PI / 180)));
+      const o = (y * W + x) * 4; if (d[o + 3] < 200) return;
+      pairs.push([colourKey(d[o], d[o + 1], d[o + 2]), -v]);
+    });
+    if (pairs.length < 8) return (staticCache[l.id] = null);
+    pairs.sort((a, b) => a[0] - b[0]);
+    // smooth into ~12 bins, then make depth only ever increase with the colour key
+    const bins = [], per = Math.max(2, Math.floor(pairs.length / 12));
+    for (let s = 0; s < pairs.length; s += per) { const part = pairs.slice(s, s + per); bins.push([part.reduce((a, p) => a + p[0], 0) / part.length, part.reduce((a, p) => a + p[1], 0) / part.length]); }
+    for (let k = 1; k < bins.length; k++) bins[k][1] = Math.max(bins[k][1], bins[k - 1][1]);
+    const keyToDepth = kk => {
+      if (kk <= bins[0][0]) return Math.max(0, bins[0][1] - (bins[0][0] - kk) * 0.05);
+      for (let q = 1; q < bins.length; q++) if (kk <= bins[q][0]) { const [k0, d0] = bins[q - 1], [k1, d1] = bins[q]; return d0 + (d1 - d0) * ((kk - k0) / ((k1 - k0) || 1)); }
+      return bins[bins.length - 1][1];
+    };
+    const depths = new Float32Array(W * W).fill(NaN), memo = new Map();
+    for (let p = 0; p < W * W; p++) {
+      const o = p * 4;
+      if (d[o + 3] < 200) { d[o + 3] = 0; continue; }
+      const kk = Math.round(colourKey(d[o], d[o + 1], d[o + 2]));
+      let dep = memo.get(kk); if (dep === undefined) { dep = keyToDepth(kk); memo.set(kk, dep); }
+      depths[p] = dep;
+      if (dep < 0.6) { d[o + 3] = 0; continue; }          // keep beaches and the waterline clean
+      const col = depthColour(dep), x = p % W, y = (p / W) | 0, edge = Math.min(x, y, W - 1 - x, W - 1 - y);
+      d[o] = col[0]; d[o + 1] = col[1]; d[o + 2] = col[2]; d[o + 3] = Math.round(195 * Math.min(1, edge / 60));   // fade out at the edges
+    }
+    ctx.putImageData(px, 0, 0);
+    const [la0, lo0] = unmerc(cx - h, cy - h), [la1, lo1] = unmerc(cx + h, cy + h);
+    const out = {
+      url: c.toDataURL('image/png'), bounds: [[la0, lo0], [la1, lo1]],
+      depthAt(la, lo) { const [x, y] = toPix(la, lo); if (x < 0 || y < 0 || x >= W || y >= W) return undefined; const v = depths[y * W + x]; return isNaN(v) ? null : v; }
+    };
+    return (staticCache[l.id] = out);
+  }
+
+  let mini = null, miniFor = null, miniEl = null, markersLayer = null, overlays = [], depthLayer = null, staticInfo = null;
   function buildMap(l) {
     miniEl = document.createElement('div');
     miniEl.className = 'depth-map';
-    mini = L.map(miniEl, { zoomControl: true, attributionControl: true, scrollWheelZoom: false }).setView([l.lat, l.lon], 14);
+    mini = L.map(miniEl, { zoomControl: true, attributionControl: true, scrollWheelZoom: false, minZoom: 12, maxZoom: 18 }).setView([l.lat, l.lon], 14);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '&copy; OpenStreetMap' }).addTo(mini);
-    overlays = [
-      viewOverlay(mini, BATHY, 0, '', 0.85, 'Depth: NSW Govt 2018 LiDAR + multibeam'),
-      viewOverlay(mini, REEF, 1, '&layerDefs=' + encodeURIComponent(JSON.stringify({ 1: "REEF='Reef'" })), 0.55, 'Reefs: NSW seabed reef map 2023')
-    ];
+    overlays = [viewOverlay(mini, REEF, 1, '&layerDefs=' + encodeURIComponent(JSON.stringify({ 1: "REEF='Reef'" })), 0.45, 'Reefs: NSW seabed reef map')];
     markersLayer = L.layerGroup().addTo(mini);
     L.circleMarker([l.lat, l.lon], { radius: 6, color: '#fff', weight: 2, fillColor: '#0b0b0b', fillOpacity: 1 }).addTo(mini).bindTooltip(l.name);
+    depthLayer = null; staticInfo = null;
     mini.on('click', async e => {
-      const pop = L.popup().setLatLng(e.latlng).setContent('Checking depth…').openOn(mini);
-      try {
-        const v = await identify(e.latlng.lat, e.latlng.lng);
-        pop.setContent(v == null ? 'No depth data here (land, or outside the survey)' : v > 0 ? `About ${v.toFixed(1)} m above sea level (land / dry at low tide)` : `<b>${(-v).toFixed(1)} m deep</b><br><small>below mean sea level</small>`);
-      } catch (err) { pop.setContent('Could not get the depth – check your connection.'); }
+      const pop = L.popup().setLatLng(e.latlng).openOn(mini);
+      const fmt = v => v == null ? 'No depth here (land, or outside the survey)' : v < 0.6 ? 'Very shallow / dry at low tide' : `<b>About ${v.toFixed(1)} m deep</b><br><small>below mean sea level</small>`;
+      const quick = staticInfo && staticInfo.depthAt(e.latlng.lat, e.latlng.lng);
+      if (quick !== undefined && staticInfo) { pop.setContent(fmt(quick)); return; }
+      pop.setContent('Checking depth…');
+      try { const v = await identify(e.latlng.lat, e.latlng.lng); pop.setContent(fmt(v == null ? null : -v)); }
+      catch (err) { pop.setContent('Could not get the depth – check your connection.'); }
     });
     miniFor = l.id;
+  }
+
+  // Depth layer: the clean pre-saved image when we have one, otherwise the live server image (pins).
+  async function addDepthLayer(l, g) {
+    if (depthLayer) return;
+    const s = g && g !== 'none' ? await staticDepth(l, g) : null;
+    if (miniFor !== l.id) return;
+    if (s) {
+      staticInfo = s;
+      depthLayer = L.imageOverlay(s.url, s.bounds, { opacity: 1, attribution: 'Depth: NSW Govt 2018 LiDAR + multibeam' }).addTo(mini);
+      mini.fitBounds(L.latLngBounds(s.bounds).pad(-0.12));   // start zoomed to the depth image
+      mini.setMaxBounds(L.latLngBounds(s.bounds).pad(0.15));
+    } else {
+      depthLayer = true;
+      const upd = viewOverlay(mini, BATHY, 0, '', 0.7, 'Depth: NSW Govt 2018 LiDAR + multibeam');
+      overlays.push(upd); upd();
+    }
   }
 
   function addMarkers(res) {
@@ -175,6 +261,7 @@ window.FISH = window.FISH || {};
     setTimeout(() => { mini.invalidateSize(); overlays.forEach(u => u()); }, 0);
     const listEl = $('#depth-list');
     let g = storedGrid(l);
+    addDepthLayer(l, g && g !== 'none' && GRIDS[l.id] ? g : null);
     if (g === 'none') {
       addMarkers(null);
       listEl.innerHTML = '<p class="muted small">The 2018 depth survey doesn\'t reach this exact spot (it mostly covers the open coast, bays and lower estuaries). Pan the map and tap the water to check depths nearby.</p>';
@@ -197,7 +284,7 @@ window.FISH = window.FISH || {};
     return `<section>
       <h3>🗺️ Depth &amp; structure ${badge}</h3>
       <div id="depth-slot" class="depth-map"></div>
-      <div class="depth-legend"><span>Shallow</span><span class="ramp"></span><span>Deep</span><span class="reef-key"></span><span>Reef</span></div>
+      <div class="depth-legend"><span class="ramp-wrap"><span class="ramp"></span><span class="ticks"><i>1 m</i><i>5</i><i>10</i><i>20</i><i>30 m+</i></span></span><span class="reef-key"></span><span>Reef</span></div>
       <p class="caption">Tap anywhere on the water for the exact depth. Numbers mark deep holes, ↘ the steepest drop-off and ▼ the deepest point nearby.</p>
       <div id="depth-list"></div>
       <p class="muted small">Source: NSW Government marine LiDAR (2018) and multibeam surveys, plus the NSW seabed reef map. A fishing guide only – <b>not for navigation</b>.</p>
