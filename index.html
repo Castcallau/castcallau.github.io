@@ -22,15 +22,39 @@
   <meta property="og:locale" content="en_AU">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:image" content="https://castcallau.github.io/share.png">
-  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <!-- Logo shown next to CastCall in Google results and browser tabs (Google needs square sizes in multiples of 48 px) -->
+  <link rel="icon" href="favicon.ico" sizes="16x16 32x32 48x48">
+  <link rel="icon" href="favicon-48.png" type="image/png" sizes="48x48">
+  <link rel="icon" href="favicon-96.png" type="image/png" sizes="96x96">
+  <link rel="icon" href="favicon-192.png" type="image/png" sizes="192x192">
   <link rel="apple-touch-icon" href="icon-180.png">
   <meta name="apple-mobile-web-app-title" content="CastCall">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="manifest" href="manifest.json">
+  <!-- Tells Google the site's name ("CastCall" instead of the web address) and its logo -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "CastCall",
+    "alternateName": ["CastCall Fishing", "CastCall AU"],
+    "url": "https://castcallau.github.io/"
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "CastCall",
+    "url": "https://castcallau.github.io/",
+    "logo": "https://castcallau.github.io/logo-512.png"
+  }
+  </script>
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
     "@type": "WebApplication",
+    "image": "https://castcallau.github.io/logo-512.png",
     "name": "CastCall",
     "url": "https://castcallau.github.io/",
     "alternateName": ["CastCall Australia", "CastCall NSW", "CastCall Fishing Forecast"],
@@ -42,12 +66,12 @@
   }
   </script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="css/styles.css?v=202611171637">
+  <link rel="stylesheet" href="css/styles.css?v=202611171659">
 </head>
 <body>
   <header class="top">
     <div class="brand">
-      <img class="logo" src="icon.svg" alt="" width="34" height="34">
+      <img class="logo" src="favicon-96.png" alt="" width="34" height="34">
       <div><h1>CastCall <span class="muted">AU</span></h1><div class="muted small" id="status">Loading…</div></div>
     </div>
     <nav class="tabs" role="tablist" aria-label="Sections">
@@ -240,17 +264,17 @@
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="js/migrate.js?v=202611171637"></script>
-  <script src="js/data/species.js?v=202611171637"></script>
-  <script src="js/data/locations.js?v=202611171637"></script>
-  <script src="js/data/locations-au.js?v=202611171637"></script>
-  <script src="js/api.js?v=202611171637"></script>
-  <script src="js/scoring.js?v=202611171637"></script>
-  <script src="js/pins.js?v=202611171637"></script>
-  <script src="js/app.js?v=202611171637"></script>
-  <script src="js/alerts.js?v=202611171637"></script>
-  <script src="js/catchlog.js?v=202611171637"></script>
-  <script src="js/data/depth-grids.js?v=202611171637"></script>
-  <script src="js/depth.js?v=202611171637"></script>
+  <script src="js/migrate.js?v=202611171659"></script>
+  <script src="js/data/species.js?v=202611171659"></script>
+  <script src="js/data/locations.js?v=202611171659"></script>
+  <script src="js/data/locations-au.js?v=202611171659"></script>
+  <script src="js/api.js?v=202611171659"></script>
+  <script src="js/scoring.js?v=202611171659"></script>
+  <script src="js/pins.js?v=202611171659"></script>
+  <script src="js/app.js?v=202611171659"></script>
+  <script src="js/alerts.js?v=202611171659"></script>
+  <script src="js/catchlog.js?v=202611171659"></script>
+  <script src="js/data/depth-grids.js?v=202611171659"></script>
+  <script src="js/depth.js?v=202611171659"></script>
 </body>
 </html>
