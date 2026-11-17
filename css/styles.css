@@ -235,7 +235,9 @@ td.num { font-variant-numeric: tabular-nums; }
 tr.night td { background: var(--night); }
 
 /* Species guide */
-.species-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 12px; }
+/* Masonry-style columns: each card sits straight under the one above, so no gaps from uneven card heights */
+.species-grid { column-width: 330px; column-gap: 12px; }
+.species-grid > .sp-card { break-inside: avoid; margin: 0 0 12px; display: inline-block; width: 100%; }
 .sp-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; }
 .sp-card header { margin-bottom: 8px; }
 .sp-card h3 { text-transform: none; letter-spacing: 0; color: var(--ink); font-size: 16px; margin: 0; }
