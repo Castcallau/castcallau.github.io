@@ -31,9 +31,28 @@ window.FISH = window.FISH || {};
 
   // Try each mirror directly; if all are blocked (some school/work networks and sandboxed
   // browsers block them) and the page is served by serve.ps1, retry through its local proxy.
+  // Head start, not a queue: if the first address hasn't answered in 4 s (blocked or slow on some
+  // school/work networks), start the next one too and use whichever finishes first. Networks that block
+  // one address used to sit on "Loading…" for 25+ seconds. The address that worked is tried first next time.
+  const FAST_KEY = 'castcall-fast-host';
+  function hedged(urls, ms) {
+    const pref = localStorage.getItem(FAST_KEY);
+    const order = urls.slice().sort((a, b) => (new URL(b).host === pref) - (new URL(a).host === pref));
+    return new Promise((resolve, reject) => {
+      let failed = 0, done = false, started = 0;
+      const startNext = () => {
+        if (done || started >= order.length) return;
+        const u = order[started++];
+        fetchJSON(u, ms).then(j => { if (!done) { done = true; try { localStorage.setItem(FAST_KEY, new URL(u).host); } catch (e) { /* ignore */ } resolve(j); } })
+          .catch(e => { failed++; if (failed >= order.length) reject(e); else startNext(); });
+        if (started < order.length) setTimeout(startNext, 4000);
+      };
+      startNext();
+    });
+  }
   async function getJSON(urls) {
     let last;
-    for (const u of urls) { try { return await fetchJSON(u, 25000); } catch (e) { last = e; } }
+    try { return await hedged(urls, 30000); } catch (e) { last = e; }
     if (location.hostname === 'localhost') {
       for (const u of urls.slice().reverse()) { try { return await fetchJSON('/proxy?url=' + encodeURIComponent(u), 95000); } catch (e) { last = e; } }
     }
