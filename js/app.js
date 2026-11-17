@@ -463,7 +463,7 @@
       </section>`);
 
     $('#close').onclick = () => closeDetail(false);
-    if (F.depth) F.depth.mount(l);
+    if (F.depth) { const tv = state.data[l.id].sea && state.data[l.id].sea[h.i]; F.depth.mount(l, { tide: tv == null || isNaN(tv) ? null : tv, when: `${day(h.t)} ${hr(h.t)}` }); }
     $('#fav').onclick = () => {
       state.favs.has(l.id) ? state.favs.delete(l.id) : state.favs.add(l.id);
       localStorage.setItem('fish-favs', JSON.stringify([...state.favs]));
@@ -1003,4 +1003,11 @@
     jumpTo, showError, loadPins, closeDetail, findLoc: id => F.LOCATIONS.find(l => l.id === id), get map() { return map; } };
 
   document.addEventListener('DOMContentLoaded', init);
+})();
+
+// Friendly greeting on the photo banner
+(function () {
+  const el = document.getElementById('hero-hi'); if (!el) return;
+  const h = new Date().getHours();
+  el.textContent = h < 5 ? 'Night owl session? 🌙' : h < 12 ? 'Morning, legend ☀️' : h < 17 ? "Arvo bite's on 🎣" : 'Evening session 🌅';
 })();

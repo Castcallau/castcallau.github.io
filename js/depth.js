@@ -121,17 +121,32 @@ window.FISH = window.FISH || {};
     return update;
   }
 
+
   // ---------- Clean, pre-saved depth images ----------
   // Each NSW spot ships with a 1.4 km depth image (depthmaps/<id>.png) saved from the survey server. The server's
-  // colour scale changes from image to image, so each one is calibrated against that spot's 81 saved depth
-  // readings, then redrawn in nautical blues. Water shallower than 0.6 m is left clear so it never paints over
-  // beaches or the shoreline, and tapping reads the depth straight from the image – no waiting on the server.
+  // colour scale changes from image to image, so each one is calibrated against that spot's 81 exact depth
+  // readings, then redrawn as chart-style depth bands with contour lines. Water shallower than 0.6 m is left clear
+  // so it never paints over beaches. Tapping shows the image's reading at once, then the exact survey value.
   const RM = 20037508.34, HALF = 700;
   const merc = (la, lo) => [lo * RM / 180, Math.log(Math.tan((90 + la) * Math.PI / 360)) / (Math.PI / 180) * RM / 180];
   const unmerc = (x, y) => [Math.atan(Math.exp(y / RM * Math.PI)) * 360 / Math.PI - 90, x / RM * 180];
   const colourKey = (r, g, b) => g + Math.max(0, 230 - r) + 0.3 * b;   // rises steadily from shallow (red) to deep (yellow → blue)
-  const STOPS = [[0.6, [205, 226, 251]], [2, [158, 197, 244]], [4, [109, 167, 236]], [7, [57, 135, 229]], [10, [42, 120, 214]],
-    [15, [37, 106, 191]], [20, [33, 98, 180]], [30, [30, 88, 166]], [45, [24, 79, 149]]];
+
+  // Depth bands, like a fishing chart: each band has its own colour and a contour line where it changes.
+  const BANDS = [
+    { to: 1, c: [196, 240, 222], label: '0–1' },
+    { to: 2, c: [150, 228, 214], label: '1–2' },
+    { to: 3, c: [102, 211, 216], label: '2–3' },
+    { to: 5, c: [64, 182, 220], label: '3–5' },
+    { to: 10, c: [44, 146, 212], label: '5–10' },
+    { to: 15, c: [36, 115, 196], label: '10–15' },
+    { to: 20, c: [30, 92, 174], label: '15–20' },
+    { to: 30, c: [24, 70, 147], label: '20–30' },
+    { to: Infinity, c: [16, 48, 108], label: '30+' }];
+  // Colours blend smoothly from band to band (no hard steps); contour lines only at the key depths.
+  const STOPS = BANDS.map((b, k) => [k ? (BANDS[k - 1].to + (isFinite(b.to) ? b.to : 40)) / 2 : 0.6, b.c]);
+  const CONTOURS = [2, 5, 10, 20, 30];
+  const levelOf = d => { let k = 0; while (k < CONTOURS.length && d >= CONTOURS[k]) k++; return k; };
   function depthColour(d) {
     if (d <= STOPS[0][0]) return STOPS[0][1];
     for (let k = 1; k < STOPS.length; k++) if (d <= STOPS[k][0]) {
@@ -140,6 +155,45 @@ window.FISH = window.FISH || {};
     }
     return STOPS[STOPS.length - 1][1];
   }
+  // Soften speckle in the survey image: average each pixel with its neighbours (display only – taps use the raw depths).
+  function smooth(src, W, r) {
+    const tmp = new Float32Array(W * W), out = new Float32Array(W * W);
+    for (const [a, b, dx] of [[src, tmp, 1], [tmp, out, W]]) {
+      for (let p = 0; p < W * W; p++) {
+        if (isNaN(src[p])) { b[p] = NaN; continue; }
+        const x = p % W, y = (p / W) | 0; let s = 0, n = 0;
+        for (let k = -r; k <= r; k++) {
+          const xx = dx === 1 ? x + k : x, yy = dx === 1 ? y : y + k;
+          if (xx < 0 || yy < 0 || xx >= W || yy >= W) continue;
+          const v = a[yy * W + xx]; if (!isNaN(v)) { s += v; n++; }
+        }
+        b[p] = n ? s / n : NaN;
+      }
+    }
+    return out;
+  }
+
+  // Colour → depth calibration: isotonic (only-ever-deeper) fit through the exact readings, extended past the ends.
+  function calibrate(pairs) {
+    pairs.sort((a, b) => a[0] - b[0]);
+    const blocks = [];
+    for (const [k, d] of pairs) {
+      blocks.push({ k, d, n: 1 });
+      while (blocks.length > 1 && blocks[blocks.length - 2].d >= blocks[blocks.length - 1].d) {
+        const b = blocks.pop(), a = blocks[blocks.length - 1], n = a.n + b.n;
+        a.k = (a.k * a.n + b.k * b.n) / n; a.d = (a.d * a.n + b.d * b.n) / n; a.n = n;
+      }
+    }
+    const pts = blocks.map(b => [b.k, b.d]), m = pts.length;
+    const slope = (p, q) => Math.max(0, (q[1] - p[1]) / ((q[0] - p[0]) || 1));
+    const sLo = m > 1 ? slope(pts[0], pts[1]) : 0, sHi = m > 1 ? slope(pts[m - 2], pts[m - 1]) : 0, maxD = pts[m - 1][1];
+    return kk => {
+      if (kk <= pts[0][0]) return Math.max(0, pts[0][1] - (pts[0][0] - kk) * sLo);
+      for (let q = 1; q < m; q++) if (kk <= pts[q][0]) { const [k0, d0] = pts[q - 1], [k1, d1] = pts[q]; return d0 + (d1 - d0) * ((kk - k0) / ((k1 - k0) || 1)); }
+      return Math.min(maxD * 1.6, maxD + (kk - pts[m - 1][0]) * sHi);   // deeper than any reading: keep the trend going (capped)
+    };
+  }
+
   const staticCache = {};
   async function staticDepth(l, g) {
     if (staticCache[l.id] !== undefined) return staticCache[l.id];
@@ -150,36 +204,41 @@ window.FISH = window.FISH || {};
     const ctx = c.getContext('2d'); ctx.drawImage(img, 0, 0, W, W);
     const px = ctx.getImageData(0, 0, W, W), d = px.data;
     const toPix = (la, lo) => { const [x, y] = merc(la, lo); return [Math.floor((x - (cx - h)) / (2 * h) * W), Math.floor(((cy + h) - y) / (2 * h) * W)]; };
-    // calibration pairs: colour key at each saved reading -> its real depth
+    const keyAt = (x, y) => { const o = (y * W + x) * 4; return d[o + 3] < 200 ? null : colourKey(d[o], d[o + 1], d[o + 2]); };
+    // calibration pairs: the median colour key around each exact reading -> its real depth
     const pairs = [], n = g.n, mid = (n - 1) / 2;
     g.d.forEach((v, k) => {
       if (v == null || v > 0) return;
       const i = Math.floor(k / n), j = k % n;
       const [x, y] = toPix(l.lat + (i - mid) * g.step / 111320, l.lon + (j - mid) * g.step / (111320 * Math.cos(l.lat * Math.PI / 180)));
-      const o = (y * W + x) * 4; if (d[o + 3] < 200) return;
-      pairs.push([colourKey(d[o], d[o + 1], d[o + 2]), -v]);
+      const ks = [];
+      for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) { const xx = x + a, yy = y + b; if (xx >= 0 && yy >= 0 && xx < W && yy < W) { const kk = keyAt(xx, yy); if (kk != null) ks.push(kk); } }
+      if (ks.length < 5) return;
+      ks.sort((p, q) => p - q);
+      pairs.push([ks[ks.length >> 1], -v]);
     });
     if (pairs.length < 8) return (staticCache[l.id] = null);
-    pairs.sort((a, b) => a[0] - b[0]);
-    // smooth into ~12 bins, then make depth only ever increase with the colour key
-    const bins = [], per = Math.max(2, Math.floor(pairs.length / 12));
-    for (let s = 0; s < pairs.length; s += per) { const part = pairs.slice(s, s + per); bins.push([part.reduce((a, p) => a + p[0], 0) / part.length, part.reduce((a, p) => a + p[1], 0) / part.length]); }
-    for (let k = 1; k < bins.length; k++) bins[k][1] = Math.max(bins[k][1], bins[k - 1][1]);
-    const keyToDepth = kk => {
-      if (kk <= bins[0][0]) return Math.max(0, bins[0][1] - (bins[0][0] - kk) * 0.05);
-      for (let q = 1; q < bins.length; q++) if (kk <= bins[q][0]) { const [k0, d0] = bins[q - 1], [k1, d1] = bins[q]; return d0 + (d1 - d0) * ((kk - k0) / ((k1 - k0) || 1)); }
-      return bins[bins.length - 1][1];
-    };
+    const keyToDepth = calibrate(pairs);
     const depths = new Float32Array(W * W).fill(NaN), memo = new Map();
     for (let p = 0; p < W * W; p++) {
       const o = p * 4;
-      if (d[o + 3] < 200) { d[o + 3] = 0; continue; }
+      if (d[o + 3] < 200) continue;
       const kk = Math.round(colourKey(d[o], d[o + 1], d[o + 2]));
       let dep = memo.get(kk); if (dep === undefined) { dep = keyToDepth(kk); memo.set(kk, dep); }
       depths[p] = dep;
-      if (dep < 0.6) { d[o + 3] = 0; continue; }          // keep beaches and the waterline clean
-      const col = depthColour(dep), x = p % W, y = (p / W) | 0, edge = Math.min(x, y, W - 1 - x, W - 1 - y);
-      d[o] = col[0]; d[o + 1] = col[1]; d[o + 2] = col[2]; d[o + 3] = Math.round(195 * Math.min(1, edge / 60));   // fade out at the edges
+    }
+    // Paint smooth colours, with soft contour lines at 2, 5, 10, 20 and 30 m.
+    const sm = smooth(depths, W, 3);
+    for (let p = 0; p < W * W; p++) {
+      const o = p * 4, dep = sm[p];
+      if (isNaN(dep) || dep < 0.6) { d[o + 3] = 0; continue; }          // keep beaches and the waterline clean
+      const x = p % W, y = (p / W) | 0, edge = Math.min(x, y, W - 1 - x, W - 1 - y);
+      const fade = Math.min(1, edge / 110) * Math.min(1, (dep - 0.6) / 0.8);   // soft edges: at the image border and at the shoreline
+      const lv = levelOf(dep), r = x < W - 1 ? sm[p + 1] : NaN, dn = y < W - 1 ? sm[p + W] : NaN;
+      const contour = (!isNaN(r) && r >= 0.6 && levelOf(r) !== lv) || (!isNaN(dn) && dn >= 0.6 && levelOf(dn) !== lv);
+      const col = depthColour(dep), mix = contour ? 0.55 : 0;
+      d[o] = Math.round(col[0] + (255 - col[0]) * mix); d[o + 1] = Math.round(col[1] + (255 - col[1]) * mix); d[o + 2] = Math.round(col[2] + (255 - col[2]) * mix);
+      d[o + 3] = Math.round(205 * fade);
     }
     ctx.putImageData(px, 0, 0);
     const [la0, lo0] = unmerc(cx - h, cy - h), [la1, lo1] = unmerc(cx + h, cy + h);
@@ -190,33 +249,137 @@ window.FISH = window.FISH || {};
     return (staticCache[l.id] = out);
   }
 
-  let mini = null, miniFor = null, miniEl = null, markersLayer = null, overlays = [], depthLayer = null, staticInfo = null;
+  // Depth anywhere near the spot: from the image when there is one, otherwise smoothed between the grid readings.
+  function depthFn(l, g, s) {
+    if (s) return (la, lo) => { const v = s.depthAt(la, lo); return v == null || v === undefined ? null : v; };
+    const n = g.n, mid = (n - 1) / 2, kLon = 111320 * Math.cos(l.lat * Math.PI / 180);
+    return (la, lo) => {
+      const fi = (la - g.lat) * 111320 / g.step + mid, fj = (lo - g.lon) * kLon / g.step + mid;
+      const i0 = Math.floor(fi), j0 = Math.floor(fj);
+      let sum = 0, wsum = 0;
+      for (const [i, j] of [[i0, j0], [i0 + 1, j0], [i0, j0 + 1], [i0 + 1, j0 + 1]]) {
+        if (i < 0 || j < 0 || i >= n || j >= n) continue;
+        const v = g.d[i * n + j]; if (v == null) continue;
+        const w = (1 - Math.abs(fi - i)) * (1 - Math.abs(fj - j)); if (w <= 0) continue;
+        sum += Math.max(0, -v) * w; wsum += w;
+      }
+      return wsum > 0.25 ? sum / wsum : null;
+    };
+  }
+  const offset = (l, dist, brg) => {
+    const r = brg * Math.PI / 180;
+    return [l.lat + Math.cos(r) * dist / 111320, l.lon + Math.sin(r) * dist / (111320 * Math.cos(l.lat * Math.PI / 180))];
+  };
+  // Side-on seabed profile from the spot out towards the deepest water.
+  // The nearest water to the spot (spot markers often sit on the shore, a wharf or a rock platform).
+  function nearestWater(l, dAt) {
+    const v0 = dAt(l.lat, l.lon); if (v0 != null && v0 >= 0.3) return { dist: 0, d: v0, lat: l.lat, lon: l.lon };
+    for (let r = 10; r <= 400; r += 10) {
+      let best = null;
+      for (let b = 0; b < 360; b += 10) { const [la, lo] = offset(l, r, b), v = dAt(la, lo); if (v != null && v >= 0.3 && (!best || v > best.d)) best = { dist: r, d: v, lat: la, lon: lo }; }
+      if (best) return best;
+    }
+    return null;
+  }
+  // Side-on profile: from the nearest water, out along the direction that stays in open water and gets deepest.
+  function profile(l, g, dAt) {
+    const start = nearestWater(l, dAt); if (!start) return null;
+    const s0 = { lat: start.lat, lon: start.lon }, LEN = 500, N = 50;
+    let best = null;
+    for (let b = 0; b < 360; b += 10) {
+      let score = 0, wet = 0;
+      for (let s = 1; s <= 20; s++) { const v = dAt(...offset(s0, s * 20, b)); if (v != null && v >= 0.3) { score += v; wet++; } else score -= 6; }
+      if (wet >= 5 && (!best || score > best.score)) best = { b, score };
+    }
+    if (!best) return null;
+    const pts = [];
+    for (let s = 0; s <= N; s++) { const dist = LEN * s / N, [la, lo] = offset(s0, dist, best.b); pts.push({ dist, d: dAt(la, lo) }); }
+    return { brg: best.b, dir: COMPASS[Math.round(best.b / 22.5) % 16], pts, start };
+  }
+  // How deep it is right at the spot, within a long cast, and the deepest water nearby.
+  function stats(l, dAt, res, prof) {
+    let at = null, out = null;
+    const nw = prof ? prof.start : nearestWater(l, dAt);
+    if (nw) { at = nw.d; out = nw.dist; }
+    let cast = null;
+    for (let r = 10; r <= 100; r += 15) for (let b = 0; b < 360; b += 20) { const v = dAt(...offset(l, r, b)); if (v != null && (cast == null || v > cast)) cast = v; }
+    return { at, out, cast, deepest: res ? res.deepest : null };
+  }
+
+  // Side view: everything is "water depth at the chosen time" = survey depth + tide, measured down from the surface.
+  function profileSvg(prof, tide) {
+    const W = 640, H = 220, L0 = 44, R0 = 14, B0 = 26, surf = 40, tw = tide == null ? 0 : tide;
+    const wd = p => p.d == null || p.d < 0.3 ? null : Math.max(0, p.d + tw);   // null = dry land / beach
+    const maxD = Math.max(3, ...prof.pts.map(p => wd(p) || 0));
+    const step = maxD > 25 ? 10 : maxD > 10 ? 5 : maxD > 5 ? 2 : 1, yMax = Math.ceil((maxD * 1.12) / step) * step;
+    const x = dist => L0 + dist / 500 * (W - L0 - R0), y = dep => surf + dep / yMax * (H - B0 - surf);
+    const bed = prof.pts.map(p => { const v = wd(p); return `${x(p.dist).toFixed(1)},${(v == null ? surf - 8 : y(v)).toFixed(1)}`; });
+    const grid = []; for (let v = step; v <= yMax; v += step) grid.push(`<line class="pg" x1="${L0}" x2="${W - R0}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"/><text class="pa" x="${L0 - 6}" y="${(y(v) + 3.5).toFixed(1)}" text-anchor="end">${v} m</text>`);
+    const xs = []; for (let m = 100; m <= 500; m += 100) xs.push(`<text class="pa" x="${x(m).toFixed(1)}" y="${H - 8}" text-anchor="middle">${m} m</text>`);
+    let deep = null; prof.pts.forEach(p => { const v = wd(p); if (v != null && (!deep || v > deep.v)) deep = { dist: p.dist, v }; });
+    const lab = [];
+    [100, 200, 300, 400].forEach(m => { const p = prof.pts.find(q => Math.round(q.dist) === m), v = p && wd(p);
+      if (v != null && v >= 0.6 && (!deep || Math.abs(m - deep.dist) > 60)) lab.push(`<text class="pd" x="${x(m).toFixed(1)}" y="${(y(v) - 7).toFixed(1)}" text-anchor="middle">${v.toFixed(1)} m</text>`); });
+    const shore = prof.pts.find(p => wd(p) != null) || prof.pts[0];
+    return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Side view of the seabed from the spot out ${prof.dir}">
+      <defs>
+        <linearGradient id="pw" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6fd0ea"/><stop offset=".5" stop-color="#2a7fca"/><stop offset="1" stop-color="#123a78"/></linearGradient>
+        <linearGradient id="ps" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e6c992"/><stop offset="1" stop-color="#8a6a3d"/></linearGradient>
+      </defs>
+      <rect x="${L0}" y="${surf}" width="${W - L0 - R0}" height="${H - B0 - surf}" fill="url(#pw)"/>
+      ${grid.join('')}
+      <polygon points="${L0},${H - B0} ${bed.join(' ')} ${W - R0},${H - B0}" fill="url(#ps)"/>
+      <polyline points="${bed.join(' ')}" fill="none" stroke="#5b4426" stroke-width="1.5" stroke-linejoin="round"/>
+      <line class="psurf" x1="${L0}" x2="${W - R0}" y1="${surf}" y2="${surf}"/>
+      <text class="pt" x="${W - R0 - 4}" y="${surf - 7}" text-anchor="end">${tide == null ? 'Water surface (mean sea level)' : `Water surface · tide ${tw >= 0 ? '+' : '−'}${Math.abs(tw).toFixed(1)} m`}</text>
+      <text x="${Math.max(L0 + 10, x(shore.dist)).toFixed(1)}" y="${surf - 6}" font-size="20" text-anchor="middle">🎣</text>
+      ${lab.join('')}
+      ${deep && deep.v >= 0.6 ? `<circle cx="${x(deep.dist).toFixed(1)}" cy="${y(deep.v).toFixed(1)}" r="4.5" fill="#fff" stroke="#123a78" stroke-width="2.5"/>
+        <text class="pdeep" x="${(x(deep.dist) > W - 130 ? W - R0 - 6 : x(deep.dist) < L0 + 90 ? L0 + 6 : x(deep.dist)).toFixed(1)}" y="${(y(deep.v) + 18 > H - B0 - 2 ? y(deep.v) - 10 : y(deep.v) + 18).toFixed(1)}" text-anchor="${x(deep.dist) > W - 130 ? 'end' : x(deep.dist) < L0 + 90 ? 'start' : 'middle'}">${deep.v.toFixed(1)} m deep</text>` : ''}
+      ${xs.join('')}
+    </svg>`;
+  }
+
+  let mini = null, miniFor = null, miniEl = null, markersLayer = null, overlays = [], depthLayer = null, staticInfo = null, cur = { tide: null, when: '' };
+  const waterTxt = (v) => {
+    if (v == null) return 'No depth here (land, or outside the survey)';
+    if (v < 0.6 && (cur.tide == null || v + cur.tide < 0.6)) return '<b>Very shallow</b><br><small>may dry out at low tide</small>';
+    if (cur.tide == null) return `<b class="pop-big">${v.toFixed(1)} m</b><br><small>deep at mean sea level</small>`;
+    const now = Math.max(0, v + cur.tide);
+    return `<b class="pop-big">${now.toFixed(1)} m</b> <small>of water</small><br><small>${cur.when}: survey ${v.toFixed(1)} m ${cur.tide >= 0 ? '+' : '−'} tide ${Math.abs(cur.tide).toFixed(1)} m</small>`;
+  };
   function buildMap(l) {
     miniEl = document.createElement('div');
     miniEl.className = 'depth-map';
-    mini = L.map(miniEl, { zoomControl: true, attributionControl: true, scrollWheelZoom: false, minZoom: 12, maxZoom: 18 }).setView([l.lat, l.lon], 14);
+    mini = L.map(miniEl, { zoomControl: false, attributionControl: true, scrollWheelZoom: true, wheelPxPerZoomLevel: 90, zoomSnap: 0.25, zoomDelta: 0.5, minZoom: 12, maxZoom: 18 }).setView([l.lat, l.lon], 14);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '&copy; OpenStreetMap' }).addTo(mini);
-    overlays = [viewOverlay(mini, REEF, 1, '&layerDefs=' + encodeURIComponent(JSON.stringify({ 1: "REEF='Reef'" })), 0.45, 'Reefs: NSW seabed reef map')];
+    // Reef drawn as a soft dark shade with a faint outline (the server's own style is a loud red).
+    const reefStyle = [{ id: 1, source: { type: 'mapLayer', mapLayerId: 1 }, definitionExpression: "REEF='Reef'",
+      drawingInfo: { renderer: { type: 'simple', symbol: { type: 'esriSFS', style: 'esriSFSSolid', color: [8, 36, 58, 255],
+        outline: { type: 'esriSLS', style: 'esriSLSSolid', color: [230, 245, 255, 255], width: 0.7 } } } } }];
+    overlays = [viewOverlay(mini, REEF, 1, '&dynamicLayers=' + encodeURIComponent(JSON.stringify(reefStyle)), 0.3, 'Reefs: NSW seabed reef map')];
     markersLayer = L.layerGroup().addTo(mini);
-    L.circleMarker([l.lat, l.lon], { radius: 6, color: '#fff', weight: 2, fillColor: '#0b0b0b', fillOpacity: 1 }).addTo(mini).bindTooltip(l.name);
+    L.circleMarker([l.lat, l.lon], { radius: 7, color: '#fff', weight: 3, fillColor: '#0b0b0b', fillOpacity: 1 }).addTo(mini).bindTooltip(l.name);
     depthLayer = null; staticInfo = null;
     mini.on('click', async e => {
-      const pop = L.popup().setLatLng(e.latlng).openOn(mini);
-      const fmt = v => v == null ? 'No depth here (land, or outside the survey)' : v < 0.6 ? 'Very shallow / dry at low tide' : `<b>About ${v.toFixed(1)} m deep</b><br><small>below mean sea level</small>`;
-      const quick = staticInfo && staticInfo.depthAt(e.latlng.lat, e.latlng.lng);
-      if (quick !== undefined && staticInfo) { pop.setContent(fmt(quick)); return; }
-      pop.setContent('Checking depth…');
-      try { const v = await identify(e.latlng.lat, e.latlng.lng); pop.setContent(fmt(v == null ? null : -v)); }
-      catch (err) { pop.setContent('Could not get the depth – check your connection.'); }
+      const pop = L.popup({ className: 'depth-pop' }).setLatLng(e.latlng).openOn(mini);
+      const quick = staticInfo ? staticInfo.depthAt(e.latlng.lat, e.latlng.lng) : undefined;
+      pop.setContent(quick !== undefined ? waterTxt(quick) + '<br><small class="pop-note">checking the exact survey…</small>' : 'Checking depth…');
+      try {
+        const v = await identify(e.latlng.lat, e.latlng.lng);
+        if (v == null && quick != null) { pop.setContent(waterTxt(quick)); return; }
+        pop.setContent(waterTxt(v == null ? null : Math.max(0, -v)) + (v == null ? '' : '<br><small class="pop-note">✓ exact survey reading</small>'));
+      } catch (err) { pop.setContent(quick !== undefined ? waterTxt(quick) : 'Could not get the depth – check your connection.'); }
     });
     miniFor = l.id;
   }
 
   // Depth layer: the clean pre-saved image when we have one, otherwise the live server image (pins).
   async function addDepthLayer(l, g) {
-    if (depthLayer) return;
+    if (depthLayer) return staticInfo;
     const s = g && g !== 'none' ? await staticDepth(l, g) : null;
-    if (miniFor !== l.id) return;
+    if (miniFor !== l.id) return null;
+    if (depthLayer) return staticInfo;
     if (s) {
       staticInfo = s;
       depthLayer = L.imageOverlay(s.url, s.bounds, { opacity: 1, attribution: 'Depth: NSW Govt 2018 LiDAR + multibeam' }).addTo(mini);
@@ -227,67 +390,95 @@ window.FISH = window.FISH || {};
       const upd = viewOverlay(mini, BATHY, 0, '', 0.7, 'Depth: NSW Govt 2018 LiDAR + multibeam');
       overlays.push(upd); upd();
     }
+    return staticInfo;
   }
 
   function addMarkers(res) {
     markersLayer.clearLayers();
     if (!res) return;
+    const t = cur.tide || 0, w = v => (v + t).toFixed(1);
     res.holes.forEach((h, k) => L.marker([h.lat, h.lon], { icon: L.divIcon({ className: '', html: `<div class="hole-pin">${k + 1}</div>`, iconSize: [26, 26], iconAnchor: [13, 13] }) })
-      .addTo(markersLayer).bindTooltip(`Hole ${k + 1}: ${h.depth.toFixed(1)} m`));
+      .addTo(markersLayer).bindTooltip(`Hole ${k + 1}: ${w(h.depth)} m`));
     if (res.drop) L.marker([res.drop.lat, res.drop.lon], { icon: L.divIcon({ className: '', html: '<div class="hole-pin drop">↘</div>', iconSize: [26, 26], iconAnchor: [13, 13] }) })
-      .addTo(markersLayer).bindTooltip(`Drop-off: ${res.drop.from.toFixed(1)} → ${res.drop.to.toFixed(1)} m`);
+      .addTo(markersLayer).bindTooltip(`Drop-off: ${w(res.drop.from)} → ${w(res.drop.to)} m`);
     if (res.deepestAt) L.marker([res.deepestAt.lat, res.deepestAt.lon], { icon: L.divIcon({ className: '', html: '<div class="hole-pin deep">▼</div>', iconSize: [26, 26], iconAnchor: [13, 13] }) })
-      .addTo(markersLayer).bindTooltip(`Deepest nearby: ${res.deepest.toFixed(1)} m`);
+      .addTo(markersLayer).bindTooltip(`Deepest nearby: ${w(res.deepest)} m`);
   }
 
   function listHtml(l, res, g) {
     if (!res) return '<p class="muted small">No depth readings around this exact spot (it may be on land or just outside the survey). Pan the map and tap the water to check depths.</p>';
-    const beach = l.type === 'beach' || l.type === 'rock';
-    return `<ul class="holes">
-        ${res.holes.map((h, k) => `<li><span class="hole-pin small">${k + 1}</span><b>Hole – ${h.depth.toFixed(1)} m</b> <span class="muted">${h.dir} · about ${h.rise.toFixed(1)} m deeper than around it</span></li>`).join('')}
-        ${res.drop ? `<li><span class="hole-pin small drop">↘</span><b>Drop-off – ${res.drop.from.toFixed(1)} → ${res.drop.to.toFixed(1)} m</b> <span class="muted">${res.drop.dir} · fish the edge</span></li>` : ''}
-        ${res.deepestAt ? `<li><span class="hole-pin small deep">▼</span><b>Deepest nearby – ${res.deepest.toFixed(1)} m</b> <span class="muted">${res.deepestAt.dir}${res.holes.length ? '' : ' · the bottom keeps sloping away, so it may get deeper further out'}</span></li>` : ''}
+    const beach = l.type === 'beach' || l.type === 'rock', t = cur.tide || 0, w = v => (v + t).toFixed(1);
+    return `<h4 class="depth-h">Where the fish hold</h4><ul class="holes">
+        ${res.holes.map((h, k) => `<li><span class="hole-pin small">${k + 1}</span><span><b>Hole – ${w(h.depth)} m</b> <span class="muted">${h.dir} · about ${h.rise.toFixed(1)} m deeper than around it</span></span></li>`).join('')}
+        ${res.drop ? `<li><span class="hole-pin small drop">↘</span><span><b>Drop-off – ${w(res.drop.from)} → ${w(res.drop.to)} m</b> <span class="muted">${res.drop.dir} · fish the edge</span></span></li>` : ''}
+        ${res.deepestAt ? `<li><span class="hole-pin small deep">▼</span><span><b>Deepest nearby – ${w(res.deepest)} m</b> <span class="muted">${res.deepestAt.dir}${res.holes.length ? '' : ' · the bottom keeps sloping away, so it may get deeper further out'}</span></span></li>` : ''}
       </ul>
-      <p class="muted small">Searched about ${Math.round(g.step * (g.n - 1) / 2)} m around the spot.
+      <p class="muted small">Searched about ${Math.round(g.step * (g.n - 1) / 2)} m around the spot.${cur.tide != null ? ` Depths include the tide at ${cur.when}.` : ''}
         ${beach ? '<br>⚠️ Beach gutters and sandbars move with every swell – this survey is from 2018, so use it as a guide and read the water on the day.' : ''}</p>`;
   }
 
+  function statsHtml(st) {
+    const t = cur.tide, w = v => v == null ? '–' : `${Math.max(0, v + (t || 0)).toFixed(1)}<small> m</small>`;
+    const sub = v => v == null ? '' : t == null ? 'at mean sea level' : `survey ${v.toFixed(1)} ${t >= 0 ? '+' : '−'} tide ${Math.abs(t).toFixed(1)}`;
+    const tile = (k, v, note) => `<div class="dstat"><span class="dk">${k}</span><span class="dv">${w(v)}</span><span class="ds">${note || sub(v)}</span></div>`;
+    return `${tile(st.out && st.out > 15 ? `Water starts ~${st.out} m out` : 'Right at the spot', st.at)}${tile('Within a long cast (100 m)', st.cast)}${tile('Deepest nearby', st.deepest)}`;
+  }
+
   // Called after the spot details are drawn. Re-uses the same mini map while you stay on one spot.
-  async function mount(l) {
+  async function mount(l, opts) {
+    cur = { tide: opts && opts.tide != null ? opts.tide : null, when: (opts && opts.when) || '' };
     const slot = $('#depth-slot');
     if (!slot || !covered(l)) return;
     if (miniFor !== l.id) { if (mini) mini.remove(); buildMap(l); }
     slot.replaceWith(miniEl);
     setTimeout(() => { mini.invalidateSize(); overlays.forEach(u => u()); }, 0);
-    const listEl = $('#depth-list');
+    const tideEl = $('#depth-tide');
+    if (tideEl) tideEl.innerHTML = cur.tide == null ? 'Depths at mean sea level' : `🌊 Tide ${cur.tide >= 0 ? '+' : '−'}${Math.abs(cur.tide).toFixed(1)} m at ${cur.when} – depths below include it`;
     let g = storedGrid(l);
-    addDepthLayer(l, g && g !== 'none' && GRIDS[l.id] ? g : null);
+    const sP = addDepthLayer(l, g && g !== 'none' && GRIDS[l.id] ? g : null);
     if (g === 'none') {
       addMarkers(null);
-      listEl.innerHTML = '<p class="muted small">The 2018 depth survey doesn\'t reach this exact spot (it mostly covers the open coast, bays and lower estuaries). Pan the map and tap the water to check depths nearby.</p>';
+      $('#depth-list').innerHTML = '<p class="muted small">The 2018 depth survey doesn\'t reach this exact spot (it mostly covers the open coast, bays and lower estuaries). Pan the map and tap the water to check depths nearby.</p>';
+      $('#depth-stats').hidden = true; $('#depth-profile').hidden = true;
       return;
     }
     if (!g) {
-      listEl.innerHTML = '<p class="muted small">🔍 Reading the seabed around this spot…</p>';
-      try { g = await sampleGrid(l); } catch (e) { listEl.innerHTML = '<p class="muted small">Could not reach the depth survey – check your connection.</p>'; return; }
+      $('#depth-list').innerHTML = '<p class="muted small">🔍 Reading the seabed around this spot…</p>';
+      try { g = await sampleGrid(l); } catch (e) { $('#depth-list').innerHTML = '<p class="muted small">Could not reach the depth survey – check your connection.</p>'; return; }
       if (F.ui.state.selected !== l.id || !$('#depth-list')) return;
     }
     const res = analyse(g);
     addMarkers(res);
     $('#depth-list').innerHTML = listHtml(l, res, g);
+    const s = await sP;
+    if (F.ui.state.selected !== l.id || !$('#depth-stats')) return;
+    const dAt = depthFn(l, g, s), prof = profile(l, g, dAt), st = stats(l, dAt, res, prof);
+    $('#depth-stats').innerHTML = statsHtml(st);
+    const pe = $('#depth-profile');
+    if (prof) pe.innerHTML = `<h4 class="depth-h">Side view – from the water's edge looking out ${prof.dir}</h4>${profileSvg(prof, cur.tide)}`;
+    else pe.hidden = true;
   }
 
   function sectionHtml(l) {
     if (!l || l.water !== 'salt') return '';
     const badge = `<span class="pro-badge" title="This will be part of CastCall Pro later">⭐ Pro${PRO_FREE ? ' – free for now' : ''}</span>`;
-    if (!covered(l)) return `<section><h3>🗺️ Depth &amp; structure ${badge}</h3><p class="muted small">Detailed depth maps cover NSW for now. ${F.STATES[l.state] ? F.STATES[l.state].name : 'This state'} is coming later.</p></section>`;
-    return `<section>
-      <h3>🗺️ Depth &amp; structure ${badge}</h3>
-      <div id="depth-slot" class="depth-map"></div>
-      <div class="depth-legend"><span class="ramp-wrap"><span class="ramp"></span><span class="ticks"><i>1 m</i><i>5</i><i>10</i><i>20</i><i>30 m+</i></span></span><span class="reef-key"></span><span>Reef</span></div>
-      <p class="caption">Tap anywhere on the water for the exact depth. Numbers mark deep holes, ↘ the steepest drop-off and ▼ the deepest point nearby.</p>
-      <div id="depth-list"></div>
-      <p class="muted small">Source: NSW Government marine LiDAR (2018) and multibeam surveys, plus the NSW seabed reef map. A fishing guide only – <b>not for navigation</b>.</p>
+    if (!covered(l)) return `<section class="depth-card"><div class="depth-top"><h3>🌊 Depth &amp; structure ${badge}</h3></div><p class="muted small" style="padding:0 16px 14px">Detailed depth maps cover NSW for now. ${F.STATES[l.state] ? F.STATES[l.state].name : 'This state'} is coming later.</p></section>`;
+    const legend = `<span class="grad" style="background:linear-gradient(90deg,${BANDS.map(b => `rgb(${b.c.join(',')})`).join(',')})"></span><span class="glabels">${BANDS.map(b => `<i>${b.label}</i>`).join('')}</span>`;
+    return `<section class="depth-card">
+      <div class="depth-top">
+        <h3>🌊 Depth &amp; structure ${badge}</h3>
+        <p>How deep it really is around this spot – from the NSW Government's laser and sonar seabed survey.</p>
+        <div class="depth-tide" id="depth-tide"></div>
+      </div>
+      <div class="depth-body">
+        <div class="depth-stats" id="depth-stats"><div class="dstat skel"></div><div class="dstat skel"></div><div class="dstat skel"></div></div>
+        <div id="depth-slot" class="depth-map"></div>
+        <div class="depth-legend"><span class="gwrap">${legend}</span><span class="gm">m</span><span class="reef-key"></span><span>Reef</span><span class="you-key"></span><span>The spot</span></div>
+        <p class="caption">👆 Tap anywhere on the water for the exact depth. Scroll (or pinch on a phone) to zoom. Faint white lines mark 2, 5, 10, 20 and 30 m. Numbers mark deep holes, ↘ the steepest drop-off and ▼ the deepest point.</p>
+        <div class="depth-profile" id="depth-profile"></div>
+        <div id="depth-list"></div>
+        <p class="muted small">Source: NSW Government marine LiDAR (2018) and multibeam surveys, plus the NSW seabed reef map. Tide heights are a forecast. A fishing guide only – <b>not for navigation</b>.</p>
+      </div>
     </section>`;
   }
 

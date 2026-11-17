@@ -66,7 +66,7 @@
   }
   </script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="css/styles.css?v=202611171710">
+  <link rel="stylesheet" href="css/styles.css?v=202611172244">
 </head>
 <body>
   <header class="top">
@@ -127,6 +127,18 @@
     <aside class="list-pane">
       <div class="list-head"><div class="search-box"><span aria-hidden="true">🔍</span><input type="search" id="search" placeholder="Search spots, towns or fish…" aria-label="Search spots" autocomplete="off"></div><div class="search-box fish-pick"><span aria-hidden="true">🎣</span><input type="text" id="fish-search" placeholder="Fish you're after… e.g. kingy, barra, flatty" aria-label="Fish you are after" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="fish-suggest" aria-autocomplete="list"><button class="clear-btn" id="fish-clear" type="button" aria-label="Clear fish" hidden>✕</button><ul class="suggest" id="fish-suggest" role="listbox" hidden></ul></div><div class="list-head-row"><b id="count"></b><button class="btn small" id="pin-start" type="button">📌 Pin a spot</button></div></div>
       <div class="scroll list-scroll">
+        <section class="hero" aria-label="Welcome">
+          <img class="hero-img" alt="Fishing off Lorne Pier, Victoria, at sunset" width="1200" height="800" fetchpriority="high"
+            src="https://images.unsplash.com/photo-1645357292577-3720b0d65258?auto=format&amp;fit=crop&amp;w=800&amp;q=70"
+            srcset="https://images.unsplash.com/photo-1645357292577-3720b0d65258?auto=format&amp;fit=crop&amp;w=500&amp;q=70 500w, https://images.unsplash.com/photo-1645357292577-3720b0d65258?auto=format&amp;fit=crop&amp;w=800&amp;q=70 800w, https://images.unsplash.com/photo-1645357292577-3720b0d65258?auto=format&amp;fit=crop&amp;w=1200&amp;q=70 1200w"
+            sizes="(max-width: 820px) 100vw, 410px">
+          <div class="hero-text">
+            <p class="hero-hi" id="hero-hi">G'day 👋</p>
+            <h2>Find your next bite</h2>
+            <p class="hero-sub">Live fishing scores for every spot around Australia – tides, wind, swell &amp; bait, updated every hour.</p>
+          </div>
+          <a class="hero-credit" href="https://unsplash.com/photos/a-man-standing-on-a-pier-fishing-at-sunset-cvJM8y82oT0?utm_source=castcall&amp;utm_medium=referral" target="_blank" rel="noopener">📷 Lorne Pier, VIC · Vince Russell / Unsplash</a>
+        </section>
         <div id="list" class="list">
           <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
         </div>
@@ -228,6 +240,18 @@
   </main>
 
   <main id="view-species" class="page wide scroll" hidden>
+    <section class="hero hero-wide" aria-label="Fish guide">
+      <img class="hero-img" alt="An angler holding a freshly caught fish" width="1200" height="800" decoding="async" fetchpriority="low"
+        src="https://images.unsplash.com/photo-1716757237180-f216084a5114?auto=format&amp;fit=crop&amp;w=1200&amp;q=70"
+        srcset="https://images.unsplash.com/photo-1716757237180-f216084a5114?auto=format&amp;fit=crop&amp;w=600&amp;q=70 600w, https://images.unsplash.com/photo-1716757237180-f216084a5114?auto=format&amp;fit=crop&amp;w=1200&amp;q=70 1200w, https://images.unsplash.com/photo-1716757237180-f216084a5114?auto=format&amp;fit=crop&amp;w=1800&amp;q=70 1800w"
+        sizes="(max-width: 820px) 100vw, 1300px">
+      <div class="hero-text">
+        <p class="hero-hi">🐟 Fish guide</p>
+        <h2>Know what's biting</h2>
+        <p class="hero-sub">Every Aussie species we track – when they're on, plus the best bait, lures and rigs to catch them.</p>
+      </div>
+      <a class="hero-credit" href="https://unsplash.com/photos/a-person-holding-a-fish-in-their-hand-LtY2vPffvxU?utm_source=castcall&amp;utm_medium=referral" target="_blank" rel="noopener">📷 Patrick / Unsplash</a>
+    </section>
     <div class="search-box sticky"><span aria-hidden="true">🔍</span><input type="search" id="species-search" placeholder="Search fish, bait or lures…" aria-label="Search species" autocomplete="off"><span class="muted small" id="species-count"></span></div>
     <p class="muted">Season ratings are a guide for Australian waters. Darker squares mean better months. Sizes, bag limits and closed seasons are a guide only.</p>
     <div id="species-grid"></div>
@@ -267,17 +291,17 @@
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="js/migrate.js?v=202611171710"></script>
-  <script src="js/data/species.js?v=202611171710"></script>
-  <script src="js/data/locations.js?v=202611171710"></script>
-  <script src="js/data/locations-au.js?v=202611171710"></script>
-  <script src="js/api.js?v=202611171710"></script>
-  <script src="js/scoring.js?v=202611171710"></script>
-  <script src="js/pins.js?v=202611171710"></script>
-  <script src="js/app.js?v=202611171710"></script>
-  <script src="js/alerts.js?v=202611171710"></script>
-  <script src="js/catchlog.js?v=202611171710"></script>
-  <script src="js/data/depth-grids.js?v=202611171710"></script>
-  <script src="js/depth.js?v=202611171710"></script>
+  <script src="js/migrate.js?v=202611172244"></script>
+  <script src="js/data/species.js?v=202611172244"></script>
+  <script src="js/data/locations.js?v=202611172244"></script>
+  <script src="js/data/locations-au.js?v=202611172244"></script>
+  <script src="js/api.js?v=202611172244"></script>
+  <script src="js/scoring.js?v=202611172244"></script>
+  <script src="js/pins.js?v=202611172244"></script>
+  <script src="js/app.js?v=202611172244"></script>
+  <script src="js/alerts.js?v=202611172244"></script>
+  <script src="js/catchlog.js?v=202611172244"></script>
+  <script src="js/data/depth-grids.js?v=202611172244"></script>
+  <script src="js/depth.js?v=202611172244"></script>
 </body>
 </html>
