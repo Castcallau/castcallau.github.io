@@ -29,8 +29,21 @@ try {
       } else { $ctx.Response.StatusCode = 403 }
       $ctx.Response.Close(); continue
     }
-    if ($path -eq '') { $path = 'index.html' }
+    if ($path -eq 'save' -and $ctx.Request.HttpMethod -eq 'POST') {
+      # Used only by tools/build-pages.html to write the generated spot/fish pages and sitemap (local only).
+      $rel = $ctx.Request.QueryString['path']
+      if ($rel -match '^(spots|fish)/([a-z0-9-]+/)?index\.html$' -or $rel -eq 'sitemap.xml') {
+        $dest = [IO.Path]::GetFullPath((Join-Path $root $rel))
+        New-Item -ItemType Directory -Force (Split-Path -Parent $dest) | Out-Null
+        $reader = New-Object IO.StreamReader($ctx.Request.InputStream, [Text.Encoding]::UTF8)
+        [IO.File]::WriteAllText($dest, $reader.ReadToEnd(), (New-Object Text.UTF8Encoding $false))
+        $ctx.Response.StatusCode = 204
+      } else { $ctx.Response.StatusCode = 403 }
+      $ctx.Response.Close(); continue
+    }
+    if ($path -eq '' -or $path.EndsWith('/')) { $path = $path + 'index.html' }
     $file = [IO.Path]::GetFullPath((Join-Path $root $path))
+    if (Test-Path $file -PathType Container) { $file = Join-Path $file 'index.html' }
     if ($file.StartsWith($root) -and (Test-Path $file -PathType Leaf)) {
       $bytes = [IO.File]::ReadAllBytes($file)
       $ext = [IO.Path]::GetExtension($file).ToLower()

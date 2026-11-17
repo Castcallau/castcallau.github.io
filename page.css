@@ -1,0 +1,51 @@
+/* Simple, fast pages for each fishing spot and fish (made for Google and for sharing). */
+:root {
+  color-scheme: light;
+  --page: #f6f8fb; --surface: #ffffff; --surface-2: #eef3f9; --ink: #0b0b0b; --ink-2: #4a4a47; --muted: #6f6e69;
+  --border: rgba(11,11,11,.10); --accent: #1c6fd1; --accent-2: #0a2f5e; --good: #006300; --bad: #b42d2d;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root { color-scheme: dark; --page: #0d0d0d; --surface: #1a1a19; --surface-2: #262624; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #9a9890;
+    --border: rgba(255,255,255,.10); --accent: #5aa2f0; --accent-2: #9ec5f4; --good: #0ca30c; --bad: #e66767; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink); font-size: 16px; line-height: 1.55; }
+a { color: var(--accent); }
+.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 2; }
+.brand { display: flex; align-items: center; gap: 10px; color: var(--ink); text-decoration: none; font-weight: 700; font-size: 18px; }
+.brand img { width: 34px; height: 34px; border-radius: 8px; }
+.btn { display: inline-block; background: var(--accent); color: #fff; text-decoration: none; font-weight: 700; padding: 10px 16px; border-radius: 10px; white-space: nowrap; }
+.btn:hover { filter: brightness(1.08); }
+.btn.ghost { background: transparent; color: var(--accent); border: 1px solid var(--border); }
+main { max-width: 860px; margin: 0 auto; padding: 16px 16px 48px; }
+.crumbs { font-size: 13px; color: var(--muted); margin: 4px 0 10px; }
+.crumbs a { color: var(--muted); }
+h1 { font-size: 28px; line-height: 1.2; margin: 6px 0 8px; }
+h2 { font-size: 20px; margin: 28px 0 10px; }
+.lead { font-size: 17px; color: var(--ink-2); margin: 0 0 14px; }
+.cta { background: linear-gradient(135deg, #0a2f5e, #1c6fd1); color: #fff; border-radius: 14px; padding: 18px; margin: 18px 0; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+.cta p { margin: 0; font-weight: 600; max-width: 520px; }
+.cta .btn { background: #fff; color: #0a2f5e; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; margin: 12px 0; }
+.facts div { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+.facts b { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin: 10px 0; }
+.card h3 { margin: 0 0 6px; font-size: 17px; }
+.card h3 a { color: var(--ink); }
+dl { display: grid; grid-template-columns: 110px 1fr; gap: 4px 12px; margin: 8px 0 0; font-size: 15px; }
+dt { color: var(--muted); font-weight: 600; }
+dd { margin: 0; }
+.months { display: grid; grid-template-columns: repeat(12, 1fr); gap: 3px; margin: 8px 0 2px; max-width: 420px; }
+.months span { height: 14px; border-radius: 3px; background: var(--surface-2); }
+.months span.q1 { background: #b7d3f6; } .months span.q2 { background: #5598e7; } .months span.q3 { background: #1c5cab; }
+.mlabels { display: grid; grid-template-columns: repeat(12, 1fr); max-width: 420px; font-size: 11px; color: var(--muted); text-align: center; }
+.note { background: var(--surface-2); border-radius: 10px; padding: 10px 12px; font-size: 15px; }
+.warn { border-left: 4px solid var(--bad); }
+.links { columns: 2 220px; column-gap: 24px; padding-left: 18px; }
+.links li { margin: 3px 0; break-inside: avoid; }
+.tag { font-size: 12px; color: var(--muted); }
+details.faq { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; margin: 8px 0; }
+details.faq summary { font-weight: 600; cursor: pointer; }
+footer { max-width: 860px; margin: 0 auto; padding: 16px; font-size: 13px; color: var(--muted); border-top: 1px solid var(--border); }
+@media (max-width: 600px) { h1 { font-size: 24px; } .top .btn { padding: 8px 12px; font-size: 14px; } dl { grid-template-columns: 90px 1fr; } }

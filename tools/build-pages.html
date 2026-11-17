@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+  <meta charset="utf-8">
+  <title>CastCall – build spot & fish pages</title>
+  <meta name="robots" content="noindex">
+  <style>body{font-family:system-ui,sans-serif;padding:20px;max-width:800px} pre{background:#f3f3f3;padding:10px;max-height:400px;overflow:auto}</style>
+</head>
+<body>
+  <h1>Build spot & fish pages</h1>
+  <p>Writes a page for every spot and fish, the two directory pages and sitemap.xml, using CastCall's own data.
+     Run it through <code>serve.ps1</code> (it saves via the local server), then publish with <code>publish.ps1</code>.</p>
+  <button id="go">Build pages</button>
+  <pre id="log"></pre>
+
+  <script src="../js/data/species.js"></script>
+  <script src="../js/data/locations.js"></script>
+  <script src="../js/data/locations-au.js"></script>
+  <script src="../js/data/depth-grids.js"></script>
+  <script>
+  (function () {
+    const F = window.FISH, SP = F.SPECIES, SITE = 'https://castcallau.github.io', V = Date.now().toString(36);
+    const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const MFULL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const TYPE = { rock: 'rock platform', beach: 'surf beach', estuary: 'estuary', harbour: 'harbour and bay', breakwall: 'breakwall', offshore: 'offshore reef', dam: 'dam / lake', river: 'river' };
+    const TOD = { dawn: 'dawn', day: 'during the day', dusk: 'dusk', night: 'at night' };
+    const TIDE = { rising: 'on the rising (run-in) tide', falling: 'on the falling (run-out) tide', change: 'around the tide change', any: 'on any tide' };
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const slug = s => s.toLowerCase().replace(/&/g, ' and ').replace(/['’()]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    const shortName = s => s.split(' – ')[0].split(' (')[0];
+    const fishShort = sp => sp.name.replace(/ \(.+\)/, '');
+    const log = m => { document.getElementById('log').textContent += m + '\n'; };
+    const spots = F.LOCATIONS.filter(l => !l.pin);
+
+    // unique slugs
+    const spotSlug = {}, used = new Set();
+    spots.forEach(l => { let s = slug(l.name); if (used.has(s)) s = slug(l.name + ' ' + l.state); used.add(s); spotSlug[l.id] = s; });
+    const fishSlug = {}; Object.entries(SP).forEach(([id, sp]) => { fishSlug[id] = slug(sp.name); });
+    const spotUrl = l => `/spots/${spotSlug[l.id]}/`, fishUrl = id => `/fish/${fishSlug[id]}/`;
+
+    function monthRanges(sel) {   // [true,false,...] -> "May–Aug, Nov"
+      const out = []; let i = 0;
+      while (i < 12) { if (!sel[i]) { i++; continue; } let j = i; while (j + 1 < 12 && sel[j + 1]) j++; out.push(i === j ? MONTHS[i] : `${MONTHS[i]}–${MONTHS[j]}`); i = j + 1; }
+      // join a Dec→Jan wrap: "Jan–Mar" + "Nov–Dec" -> "Nov–Mar"
+      if (sel[0] && sel[11] && out.length > 1) { const first = out.shift(), last = out.pop(); out.push(`${last.split('–')[0]}–${first.split('–').pop()}`); }
+      return out.join(', ') || 'all year';
+    }
+    const peakMonths = sp => monthRanges(sp.season.map(v => v === 3));
+    const goodMonths = sp => monthRanges(sp.season.map(v => v >= 2));
+    const monthStrip = season => `<div class="months" role="img" aria-label="Season by month">${season.map((v, m) => `<span class="q${v}" title="${MONTHS[m]}"></span>`).join('')}</div><div class="mlabels">${MONTHS.map(m => `<span>${m[0]}</span>`).join('')}</div>`;
+    const bestTimes = sp => Object.entries(sp.tod).filter(([, v]) => v >= 0.9).map(([k]) => TOD[k]).join(' and ') || 'dawn and dusk';
+    const sizeText = (sp, st) => st && st !== 'NSW' ? `Check ${F.STATES[st].agency} rules – limits differ between states` : sp.pest ? 'Pest – no size or bag limit, don’t release alive' : sp.size && sp.size !== 'No limit' ? `NSW: ${/^\d+ cm$/.test(sp.size) ? 'min ' : ''}${sp.size}, bag ${sp.bag} (guide only)` : 'Check current NSW DPI rules';
+    function km(a, b) { const R = 6371, dLa = (b.lat - a.lat) * Math.PI / 180, dLo = (b.lon - a.lon) * Math.PI / 180; const x = Math.sin(dLa / 2) ** 2 + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.sin(dLo / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(x)); }
+    function depthText(l) {
+      const g = F.DEPTH_GRIDS && F.DEPTH_GRIDS.spots[l.id]; if (!g) return '';
+      const wet = g.filter(v => v != null && v < -0.3); if (wet.length < 6) return '';
+      const n = F.DEPTH_GRIDS.meta.n; let drop = 0, from = 0, to = 0;
+      for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) { const v = g[i * n + j]; if (v == null) continue; [[0, 1], [1, 0]].forEach(([a, b]) => { if (i + a >= n || j + b >= n) return; const w = g[(i + a) * n + j + b]; if (w == null) return; const c = Math.abs(v - w); if (c > drop) { drop = c; from = -Math.max(v, w); to = -Math.min(v, w); } }); }
+      return `Within about 450 m of ${esc(shortName(l.name))} the seabed reaches about <b>${(-Math.min(...wet)).toFixed(0)} m</b> deep` +
+        (drop >= 2 ? `, with a drop-off from about ${from.toFixed(0)} m to ${to.toFixed(0)} m – drop-offs and holes like this are where fish hold, so fish the edges.` : '.') +
+        ` Open the live forecast for the full depth map, deep holes and reefs (NSW Government 2018 survey).`;
+    }
+
+    function shell({ title, desc, path, body, jsonld = [] }) {
+      const url = SITE + path;
+      return `<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${esc(title)}</title>
+  <meta name="description" content="${esc(desc)}">
+  <link rel="canonical" href="${url}">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="CastCall">
+  <meta property="og:title" content="${esc(title)}">
+  <meta property="og:description" content="${esc(desc)}">
+  <meta property="og:url" content="${url}">
+  <meta property="og:image" content="${SITE}/share.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="theme-color" content="#0a2f5e">
+  <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48">
+  <link rel="icon" href="/favicon-48.png" type="image/png" sizes="48x48">
+  <link rel="icon" href="/favicon-96.png" type="image/png" sizes="96x96">
+  <link rel="apple-touch-icon" href="/icon-180.png">
+  <link rel="stylesheet" href="/page.css?v=${V}">
+${jsonld.map(j => `  <script type="application/ld+json">${JSON.stringify(j).replace(/</g, '\\u003c')}<\/script>`).join('\n')}
+</head>
+<body>
+  <header class="top"><a class="brand" href="/"><img src="/favicon-96.png" alt="" width="34" height="34">CastCall</a><a class="btn" href="/">Open the app</a></header>
+  <main>
+${body}
+  </main>
+  <footer>
+    <p><a href="/">CastCall – free fishing forecast</a> · <a href="/spots/">All fishing spots</a> · <a href="/fish/">Fish guide</a></p>
+    <p>Scores and forecasts are a guide only. Always check conditions, wear a lifejacket on rocks and boats, and check the current fishing rules for your state.</p>
+  </footer>
+</body>
+</html>
+`;
+    }
+    const crumbsLd = items => ({ '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: items.map(([name, path], i) => ({ '@type': 'ListItem', position: i + 1, name, item: SITE + path })) });
+    const faqLd = qa => ({ '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: qa.map(([q, a]) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } })) });
+    const faqHtml = qa => `<h2>Common questions</h2>${qa.map(([q, a]) => `<details class="faq"><summary>${esc(q)}</summary><p>${esc(a)}</p></details>`).join('')}`;
+
+    function spotPage(l) {
+      const st = F.STATES[l.state], name = l.name, short = shortName(name), fish = l.species.map(id => [id, SP[id]]);
+      const fishNames = fish.map(([, s]) => fishShort(s));
+      const fishList = fishNames.length > 1 ? `${fishNames.slice(0, -1).join(', ')} and ${fishNames[fishNames.length - 1]}` : fishNames[0];
+      // months when most of this spot's fish are in good form
+      const avg = MONTHS.map((_, m) => fish.reduce((s, [, sp]) => s + sp.season[m], 0) / fish.length);
+      // the 4 best months for this spot's fish overall
+      const cut = avg.slice().sort((a, b) => b - a)[3], best = monthRanges(avg.map(v => v >= cut && v > 0));
+      const access = l.access.map(a => a === 'land' ? 'land-based' : 'boat / kayak').join(' and ');
+      const near = spots.filter(o => o.id !== l.id).map(o => [o, km(l, o)]).sort((a, b) => a[1] - b[1]).slice(0, 6);
+      const topBaits = [...new Set(fish.slice(0, 4).flatMap(([, s]) => s.baits.slice(0, 2)))].slice(0, 6);
+      const warn = [];
+      if (l.crocs) warn.push('Crocodile country – stay well back from the water’s edge, never wade, and don’t clean fish at the water.');
+      if (l.noEat) warn.push('NSW Health advises not eating fish or crustaceans caught west of the Sydney Harbour Bridge (dioxins) – catch and release only.');
+      if (l.type === 'rock') warn.push('Rock fishing is dangerous in swell – check conditions, watch the sets for 15 minutes first, and wear a lifejacket (compulsory at many NSW rock spots).');
+      const depth = depthText(l);
+      const path = spotUrl(l);
+      const fresh = l.water === 'fresh';
+      const title = fresh ? `${name} Fishing – Best Times, What's Biting & Bait | CastCall` : `${name} Fishing – Tide Times, Best Times & Bait | CastCall`;
+      const desc = `Fishing at ${short}, ${l.region} ${l.state}: ${fishList}. Best baits and rigs, plus ${fresh ? 'live weather, rain and water temperature' : 'live tide times, wind, swell'} and the best time to fish – free on CastCall.`.slice(0, 300);
+      const qa = [
+        [`What fish can you catch at ${short}?`, `${short} holds ${fishList}. ${l.notes}`],
+        [`What is the best bait at ${short}?`, `Good baits here are ${topBaits.join(', ')}. ${fish[0] ? `For ${fishShort(fish[0][1])}, try ${fish[0][1].baits.slice(0, 3).join(', ')}.` : ''}`],
+        [`When is the best time to fish ${short}?`, `The best months are usually ${best}. On the day, dawn and dusk and the hours around the tide change are typically best. CastCall scores ${short} every hour for the next two weeks using tides, wind, swell, water temperature and the moon.`]
+      ];
+      const body = `
+    <nav class="crumbs"><a href="/">CastCall</a> › <a href="/spots/">Fishing spots</a> › <a href="/spots/#${l.state.toLowerCase()}">${esc(st.name)}</a> › ${esc(short)}</nav>
+    <h1>${esc(name)} fishing</h1>
+    <p class="lead">${/^[aeiou]/.test(TYPE[l.type]) ? 'An' : 'A'} ${esc(TYPE[l.type])} in ${esc(l.region)}, ${esc(st.name)} – ${access}. ${esc(l.notes)}</p>
+    <div class="cta"><p>See today's fishing score, ${fresh ? 'weather, rain and water temperature' : 'tide times, wind, swell'} and the best time to fish ${esc(short)} over the next 2 weeks.</p><a class="btn" href="/?spot=${l.id}">Open live forecast →</a></div>
+    <div class="facts">
+      <div><b>Water</b>${l.water === 'fresh' ? 'Freshwater' : 'Saltwater'}</div>
+      <div><b>Type</b>${esc(TYPE[l.type][0].toUpperCase() + TYPE[l.type].slice(1))}</div>
+      <div><b>Access</b>${esc(access[0].toUpperCase() + access.slice(1))}</div>
+      <div><b>Best months</b>${esc(best)}</div>
+    </div>
+    ${warn.map(w => `<p class="note warn">⚠️ ${esc(w)}</p>`).join('')}
+    <h2>Fish you can catch at ${esc(short)}</h2>
+    ${fish.map(([id, sp]) => `<div class="card">
+      <h3><a href="${fishUrl(id)}">${esc(sp.name)}</a></h3>
+      ${monthStrip(sp.season)}
+      <dl>
+        <dt>Best months</dt><dd>${esc(peakMonths(sp))}</dd>
+        <dt>Best baits</dt><dd>${esc(sp.baits.join(' · '))}</dd>
+        <dt>Lures</dt><dd>${esc(sp.lures.join(' · '))}</dd>
+        <dt>Rig</dt><dd>${esc(sp.rig)}</dd>
+        <dt>Size / bag</dt><dd>${esc(sizeText(sp, l.state))}</dd>
+      </dl></div>`).join('')}
+    ${depth ? `<h2>Depth &amp; structure</h2><p>${depth}</p>` : ''}
+    <h2>Getting there</h2>
+    <p>${esc(l.access_info)}</p>
+    <p><a href="https://www.google.com/maps/dir/?api=1&amp;destination=${l.lat},${l.lon}" rel="noopener">Directions in Google Maps ↗</a> · <a href="${st.rules}" rel="noopener">${esc(st.agency)} fishing rules ↗</a></p>
+    <h2>Nearby fishing spots</h2>
+    <ul class="links">${near.map(([o, d]) => `<li><a href="${spotUrl(o)}">${esc(o.name)}</a> <span class="tag">${d < 1 ? '<1' : Math.round(d)} km</span></li>`).join('')}</ul>
+    ${faqHtml(qa)}
+    <div class="cta"><p>Planning a trip to ${esc(short)}? Get the hour-by-hour fishing score, tides and what's biting.</p><a class="btn" href="/?spot=${l.id}">Check the forecast →</a></div>`;
+      const jsonld = [crumbsLd([['CastCall', '/'], ['Fishing spots', '/spots/'], [name, path]]), faqLd(qa),
+        { '@context': 'https://schema.org', '@type': 'Place', name: `${name} fishing spot`, description: l.notes, geo: { '@type': 'GeoCoordinates', latitude: l.lat, longitude: l.lon }, address: { '@type': 'PostalAddress', addressRegion: l.state, addressCountry: 'AU' } }];
+      return { path: `spots/${spotSlug[l.id]}/index.html`, url: path, html: shell({ title, desc, path, body, jsonld }) };
+    }
+
+    function fishPage(id) {
+      const sp = SP[id], name = sp.name, short = fishShort(sp), path = fishUrl(id);
+      const where = spots.filter(l => l.species.includes(id));
+      const byState = Object.keys(F.STATES).map(st => [st, where.filter(l => l.state === st)]).filter(([, ls]) => ls.length);
+      const title = `${short} Fishing – Best Bait, Lures, Rigs, Season & Spots | CastCall`;
+      const desc = `How to catch ${short} in Australia: best bait (${sp.baits.slice(0, 3).join(', ')}), lures, rigs, best months (${peakMonths(sp)}), and ${where.length} spots to catch them – with live bite times on CastCall.`.slice(0, 300);
+      const qa = [
+        [`What is the best bait for ${short}?`, `The best baits for ${short} are ${sp.baits.join(', ')}. Lures that work: ${sp.lures.join(', ')}.`],
+        [`When is the best time to catch ${short}?`, `${short} are at their best in ${peakMonths(sp)} (good from ${goodMonths(sp)}). They bite best ${bestTimes(sp)} and ${TIDE[sp.tide]}, in water around ${sp.temp[0]}–${sp.temp[1]}°C.`],
+        [`Where can you catch ${short}?`, `${sp.habitat} Top spots on CastCall include ${where.slice(0, 6).map(l => shortName(l.name)).join(', ')}.`],
+        [`What is the legal size for ${short}?`, `${sizeText(sp)}. Size and bag limits differ between states and change over time, so always check the current rules before keeping fish.`]
+      ];
+      const body = `
+    <nav class="crumbs"><a href="/">CastCall</a> › <a href="/fish/">Fish guide</a> › ${esc(short)}</nav>
+    <h1>${esc(short)} fishing: best bait, lures, rigs &amp; where to catch them</h1>
+    <p class="lead"><i>${esc(sp.sci)}</i> · ${esc(sp.habitat)} ${esc(sp.tips)}</p>
+    <div class="cta"><p>See where ${esc(short)} should be biting right now – spots ranked hour by hour for the next 2 weeks.</p><a class="btn" href="/?fish=${id}">Find ${esc(short)} spots →</a></div>
+    <div class="facts">
+      <div><b>Best months</b>${esc(peakMonths(sp))}</div>
+      <div><b>Best time</b>${esc(bestTimes(sp))}</div>
+      <div><b>Tide</b>${esc(TIDE[sp.tide].replace(/^on (the )?|^around the /, '').replace(/^./, c => c.toUpperCase()))}</div>
+      <div><b>Water temp</b>${sp.temp[0]}–${sp.temp[1]}°C</div>
+    </div>
+    ${monthStrip(sp.season)}
+    ${(sp.closures || []).map(c => `<p class="note warn">⛔ ${esc(c.note)}</p>`).join('')}
+    ${sp.pest ? '<p class="note warn">Pest fish – it’s illegal to release it back alive in many places.</p>' : ''}
+    <h2>Best baits for ${esc(short)}</h2><ul>${sp.baits.map(b => `<li>${esc(b)}</li>`).join('')}</ul>
+    <h2>Best lures</h2><ul>${sp.lures.map(b => `<li>${esc(b)}</li>`).join('')}</ul>
+    <h2>Rig</h2><p>${esc(sp.rig)}</p>
+    <h2>Size and bag limit</h2><p>${esc(sizeText(sp))}. Limits differ between states – always check your state's current rules.</p>
+    <h2>Where to catch ${esc(short)}</h2>
+    ${byState.map(([st, ls]) => `<h3>${esc(F.STATES[st].name)}</h3><ul class="links">${ls.map(l => `<li><a href="${spotUrl(l)}">${esc(l.name)}</a></li>`).join('')}</ul>`).join('')}
+    ${faqHtml(qa)}
+    <div class="cta"><p>Want to know exactly when and where to go for ${esc(short)}?</p><a class="btn" href="/?fish=${id}">Open CastCall →</a></div>`;
+      const jsonld = [crumbsLd([['CastCall', '/'], ['Fish guide', '/fish/'], [short, path]]), faqLd(qa)];
+      return { path: `fish/${fishSlug[id]}/index.html`, url: path, html: shell({ title, desc, path, body, jsonld }) };
+    }
+
+    function spotsIndex() {
+      const body = `
+    <nav class="crumbs"><a href="/">CastCall</a> › Fishing spots</nav>
+    <h1>Fishing spots in Australia</h1>
+    <p class="lead">${spots.length} saltwater and freshwater fishing spots across every state – from local baths and wharves to offshore reefs. Each has the fish you can catch, best baits and rigs, and a live fishing forecast.</p>
+    <div class="cta"><p>Want the best spot to fish right now? CastCall ranks them all, hour by hour.</p><a class="btn" href="/">Open the live forecast →</a></div>
+    ${Object.entries(F.STATES).map(([st, s]) => { const ls = spots.filter(l => l.state === st); if (!ls.length) return '';
+      const regions = [...new Set(ls.map(l => l.region))];
+      return `<h2 id="${st.toLowerCase()}">${esc(s.name)} fishing spots</h2>${regions.map(r => `<h3>${esc(r)}</h3><ul class="links">${ls.filter(l => l.region === r).map(l => `<li><a href="${spotUrl(l)}">${esc(l.name)}</a></li>`).join('')}</ul>`).join('')}`; }).join('')}`;
+      return { path: 'spots/index.html', url: '/spots/', html: shell({ title: 'Fishing Spots in Australia – NSW, QLD, VIC, WA, SA, TAS & NT | CastCall', desc: `${spots.length} of the best fishing spots in Australia: Sydney, the NSW coast, Queensland, Victoria, WA, SA, Tasmania and the NT – what's biting, best bait and live fishing forecasts.`, path: '/spots/', body, jsonld: [crumbsLd([['CastCall', '/'], ['Fishing spots', '/spots/']])] }) };
+    }
+    function fishIndex() {
+      const groups = [['Saltwater fish', ([, s]) => s.water !== 'fresh'], ['Freshwater fish', ([, s]) => s.water === 'fresh']];
+      const body = `
+    <nav class="crumbs"><a href="/">CastCall</a> › Fish guide</nav>
+    <h1>Australian fish guide: best bait, lures and seasons</h1>
+    <p class="lead">How to catch ${Object.keys(SP).length} of Australia's most popular fish – the best bait and lures, rigs, best months and where to find them.</p>
+    ${groups.map(([title, test]) => `<h2>${title}</h2>${Object.entries(SP).filter(test).map(([id, sp]) => `<div class="card"><h3><a href="${fishUrl(id)}">${esc(sp.name)}</a></h3><p class="tag">Best months: ${esc(peakMonths(sp))} · Top baits: ${esc(sp.baits.slice(0, 3).join(', '))}</p></div>`).join('')}`).join('')}`;
+      return { path: 'fish/index.html', url: '/fish/', html: shell({ title: 'Australian Fish Guide – Best Bait, Lures, Rigs & Seasons | CastCall', desc: `Best bait, lures, rigs and seasons for ${Object.keys(SP).length} Australian fish – flathead, bream, whiting, kingfish, snapper, mulloway, barramundi, Murray cod, trout and more.`, path: '/fish/', body, jsonld: [crumbsLd([['CastCall', '/'], ['Fish guide', '/fish/']])] }) };
+    }
+
+    async function save(path, text) {
+      const r = await fetch('/save?path=' + encodeURIComponent(path), { method: 'POST', body: text });
+      if (r.status !== 204) throw new Error(`Saving ${path} failed (${r.status})`);
+    }
+
+    document.getElementById('go').onclick = async () => {
+      const pages = [spotsIndex(), fishIndex(), ...spots.map(spotPage), ...Object.keys(SP).map(fishPage)];
+      let k = 0;
+      for (const p of pages) { await save(p.path, p.html); if (++k % 20 === 0) log(`saved ${k}/${pages.length}`); }
+      const today = new Date().toISOString().slice(0, 10);
+      const urls = ['/', ...pages.map(p => p.url)];
+      const sitemap = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map(u => `  <url><loc>${SITE}${u}</loc><lastmod>${today}</lastmod></url>`).join('\n')}\n</urlset>\n`;
+      await save('sitemap.xml', sitemap);
+      log(`Done: ${pages.length} pages + sitemap.xml (${urls.length} URLs)`);
+      window.BUILD_DONE = { pages: pages.length, urls: urls.length, sample: pages.slice(0, 3).map(p => p.url) };
+    };
+  })();
+  </script>
+</body>
+</html>

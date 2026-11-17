@@ -61,8 +61,10 @@
 
   function openSharedSpot() {
     // Shared spot links (?spot=gymeabay) open straight to that spot, once.
-    const want = new URLSearchParams(location.search).get('spot');
+    const q = new URLSearchParams(location.search), want = q.get('spot'), fish = q.get('fish');
     if (want && !load.opened && F.LOCATIONS.some(l => l.id === want)) { load.opened = true; select(want); }
+    // Fish guide pages link here with ?fish=<id>: open the spot list ranked for that fish.
+    if (fish && !load.fishSet && SP[fish]) { load.fishSet = true; setTarget(fish); }
   }
 
   async function load(force) {
