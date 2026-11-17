@@ -11,7 +11,8 @@ window.FISH = window.FISH || {};
   const $ = s => document.querySelector(s);
 
   // Covered by the NSW survey (state waters from Point Danger to Cape Howe).
-  const covered = l => l && l.water === 'salt' && l.lat < -28.1 && l.lat > -37.6 && l.lon > 149.8 && l.lon < 153.7 && (l.state === 'NSW' || l.pin);
+  const nswCovered = l => l && l.water === 'salt' && l.lat < -28.1 && l.lat > -37.6 && l.lon > 149.8 && l.lon < 153.7 && (l.state === 'NSW' || l.pin);
+  function covered(l) { try { return nswCovered(l) || auCovered(l); } catch (e) { return nswCovered(l); } }
 
   // ---------- Grids & hole finding ----------
   const GRIDS = (F.DEPTH_GRIDS && F.DEPTH_GRIDS.spots) || {};
@@ -227,19 +228,7 @@ window.FISH = window.FISH || {};
       let dep = memo.get(kk); if (dep === undefined) { dep = keyToDepth(kk); memo.set(kk, dep); }
       depths[p] = dep;
     }
-    // Paint smooth colours, with soft contour lines at 2, 5, 10, 20 and 30 m.
-    const sm = smooth(depths, W, 3);
-    for (let p = 0; p < W * W; p++) {
-      const o = p * 4, dep = sm[p];
-      if (isNaN(dep) || dep < 0.6) { d[o + 3] = 0; continue; }          // keep beaches and the waterline clean
-      const x = p % W, y = (p / W) | 0, edge = Math.min(x, y, W - 1 - x, W - 1 - y);
-      const fade = Math.min(1, edge / 110) * Math.min(1, (dep - 0.6) / 0.8);   // soft edges: at the image border and at the shoreline
-      const lv = levelOf(dep), r = x < W - 1 ? sm[p + 1] : NaN, dn = y < W - 1 ? sm[p + W] : NaN;
-      const contour = (!isNaN(r) && r >= 0.6 && levelOf(r) !== lv) || (!isNaN(dn) && dn >= 0.6 && levelOf(dn) !== lv);
-      const col = depthColour(dep), mix = contour ? 0.55 : 0;
-      d[o] = Math.round(col[0] + (255 - col[0]) * mix); d[o + 1] = Math.round(col[1] + (255 - col[1]) * mix); d[o + 2] = Math.round(col[2] + (255 - col[2]) * mix);
-      d[o + 3] = Math.round(205 * fade);
-    }
+    paint(d, depths, W, 3);
     ctx.putImageData(px, 0, 0);
     const [la0, lo0] = unmerc(cx - h, cy - h), [la1, lo1] = unmerc(cx + h, cy + h);
     const out = {
@@ -248,6 +237,135 @@ window.FISH = window.FISH || {};
     };
     return (staticCache[l.id] = out);
   }
+
+  // Paint smooth colours, with soft contour lines at 2, 5, 10, 20 and 30 m (same look for every state).
+  function paint(d, depths, W, r) {
+    const sm = r ? smooth(depths, W, r) : depths;
+    for (let p = 0; p < W * W; p++) {
+      const o = p * 4, dep = sm[p];
+      if (isNaN(dep) || dep < 0.6) { d[o + 3] = 0; continue; }          // keep beaches and the waterline clean
+      const x = p % W, y = (p / W) | 0, edge = Math.min(x, y, W - 1 - x, W - 1 - y);
+      const fade = Math.min(1, edge / 110) * Math.min(1, (dep - 0.6) / 0.8);   // soft edges: at the image border and at the shoreline
+      const lv = levelOf(dep), rr = x < W - 1 ? sm[p + 1] : NaN, dn = y < W - 1 ? sm[p + W] : NaN;
+      const contour = (!isNaN(rr) && rr >= 0.6 && levelOf(rr) !== lv) || (!isNaN(dn) && dn >= 0.6 && levelOf(dn) !== lv);
+      const col = depthColour(dep), mix = contour ? 0.55 : 0;
+      d[o] = Math.round(col[0] + (255 - col[0]) * mix); d[o + 1] = Math.round(col[1] + (255 - col[1]) * mix); d[o + 2] = Math.round(col[2] + (255 - col[2]) * mix);
+      d[o + 3] = Math.round(205 * fade);
+    }
+  }
+
+  // ---------- Every other state: Geoscience Australia / AusSeabed survey grids ----------
+  // The national seabed warehouse holds 30 m regional depth models (Great Barrier Reef, Northern Australia,
+  // Bass Strait) and hundreds of finer multibeam surveys. For each spot we use the finest survey that covers it,
+  // download the raw depths for 1.4 km around it (no colour guessing needed) and draw it exactly like NSW.
+  const AUS = 'https://warehouse.ausseabed.gov.au/geoserver/ows';
+  const AU_LAYERS = F.DEPTH_AU_LAYERS || [];      // [name, resolution m, west, south, east, north]
+  const MAX_RES = 60;                              // coarser than this can't show holes and ledges near a spot
+  const auCandidates = (lat, lon) => AU_LAYERS.filter(a => a[1] <= MAX_RES && lon >= a[2] && lon <= a[4] && lat >= a[3] && lat <= a[5]).sort((a, b) => a[1] - b[1]);
+  const auCovered = l => l && l.water === 'salt' && !nswCovered(l) && auCandidates(l.lat, l.lon).length > 0;
+
+  // Minimal GeoTIFF reader: the warehouse sends uncompressed 32-bit float grids (one strip or tiles).
+  function readTiff(buf) {
+    const dv = new DataView(buf), le = dv.getUint8(0) === 0x49, u16 = o => dv.getUint16(o, le), u32 = o => dv.getUint32(o, le);
+    const ifd = u32(4), n = u16(ifd), T = {};
+    for (let i = 0; i < n; i++) {
+      const o = ifd + 2 + i * 12, tag = u16(o), type = u16(o + 2), cnt = u32(o + 4);
+      const val = k => type === 3 ? (cnt <= 2 ? u16(o + 8 + 2 * k) : u16(u32(o + 8) + 2 * k)) : (cnt === 1 ? u32(o + 8) : u32(u32(o + 8) + 4 * k));
+      T[tag] = { cnt, type, val, raw: o };
+    }
+    if (T[259] && T[259].val(0) !== 1) throw new Error('compressed');
+    const W = T[256].val(0), H = T[257].val(0), out = new Float32Array(W * H).fill(NaN);
+    let nodata = null;
+    if (T[42113]) { const t = T[42113], off = t.cnt <= 4 ? t.raw + 8 : u32(t.raw + 8); let s = ''; for (let k = 0; k < t.cnt; k++) { const ch = dv.getUint8(off + k); if (ch) s += String.fromCharCode(ch); } nodata = parseFloat(s); }
+    const put = (x, y, v) => { if (x < W && y < H) out[y * W + x] = (nodata != null && Math.abs(v - nodata) < 1e-3) || !isFinite(v) || v < -12000 ? NaN : v; };
+    if (T[322]) {            // tiled
+      const tw = T[322].val(0), th = T[323].val(0), across = Math.ceil(W / tw), tiles = T[324].cnt;
+      for (let t = 0; t < tiles; t++) {
+        const off = T[324].val(t), tx = (t % across) * tw, ty = Math.floor(t / across) * th;
+        for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) put(tx + x, ty + y, dv.getFloat32(off + (y * tw + x) * 4, le));
+      }
+    } else {                  // strips
+      const rps = T[278] ? T[278].val(0) : H, strips = T[273].cnt;
+      for (let s = 0; s < strips; s++) {
+        const off = T[273].val(s);
+        for (let y = 0; y < rps; y++) for (let x = 0; x < W; x++) { const yy = s * rps + y; if (yy < H) put(x, yy, dv.getFloat32(off + (y * W + x) * 4, le)); }
+      }
+    }
+    return { W, H, v: out };
+  }
+
+  const auCache = {};
+  async function auFetch(layer, lat, lon) {
+    const res = layer[1], dLat = HALF / 111320, dLon = HALF / (111320 * Math.cos(lat * Math.PI / 180));
+    const N = Math.max(24, Math.min(140, Math.round(2 * HALF / Math.max(res, 10))));
+    const bbox = [lon - dLon, lat - dLat, lon + dLon, lat + dLat];
+    const url = `${AUS}?service=WCS&version=1.0.0&request=GetCoverage&coverage=${encodeURIComponent('ausseabed:' + layer[0])}&crs=EPSG:4326&bbox=${bbox.map(v => v.toFixed(6)).join(',')}&width=${N}&height=${N}&format=GeoTIFF`;
+    const r = await fetch(url);
+    if (!r.ok || !/tiff/.test(r.headers.get('content-type') || '')) throw new Error('no coverage');
+    const t = readTiff(await r.arrayBuffer());
+    return { layer, bbox, ...t };
+  }
+  // Elevation (negative = under water) anywhere in the downloaded grid, smoothly between cells.
+  function auElev(c, la, lo) {
+    const fx = (lo - c.bbox[0]) / (c.bbox[2] - c.bbox[0]) * c.W - 0.5, fy = (c.bbox[3] - la) / (c.bbox[3] - c.bbox[1]) * c.H - 0.5;
+    if (fx < -0.5 || fy < -0.5 || fx > c.W - 0.5 || fy > c.H - 0.5) return undefined;
+    const x0 = Math.max(0, Math.floor(fx)), y0 = Math.max(0, Math.floor(fy));
+    let s = 0, w = 0;
+    for (const [x, y] of [[x0, y0], [x0 + 1, y0], [x0, y0 + 1], [x0 + 1, y0 + 1]]) {
+      if (x >= c.W || y >= c.H) continue;
+      const v = c.v[y * c.W + x]; if (isNaN(v)) continue;
+      const k = (1 - Math.min(1, Math.abs(fx - x))) * (1 - Math.min(1, Math.abs(fy - y))); if (k <= 0) continue;
+      s += v * k; w += k;
+    }
+    return w > 0.2 ? s / w : null;
+  }
+  // Pick the finest survey with real water data around the spot, then build the same pieces NSW spots have.
+  async function auDepth(l) {
+    const key = `${l.id}@${l.lat.toFixed(4)},${l.lon.toFixed(4)}`;
+    if (auCache[key]) return auCache[key];
+    const memoKey = 'castcall-audepth-' + key;
+    let pick = null; try { pick = localStorage.getItem(memoKey); } catch (e) { /* ignore */ }
+    const cands = auCandidates(l.lat, l.lon), order = pick ? [cands.find(c => c[0] === pick), ...cands.filter(c => c[0] !== pick)].filter(Boolean) : cands;
+    let cov = null;
+    for (const layer of order.slice(0, 6)) {
+      try {
+        const c = await auFetch(layer, l.lat, l.lon);
+        const vals = c.v.filter(v => !isNaN(v)), wet = vals.filter(v => v < -0.3).length / c.v.length;
+        const distinct = new Set(vals.map(v => Math.round(v * 2))).size;   // a real survey has many different depths, not a flat fill
+        if (wet >= 0.12 && distinct >= 12) { cov = c; break; }
+      } catch (e) { /* try the next survey */ }
+    }
+    if (!cov) return (auCache[key] = null);
+    try { localStorage.setItem(memoKey, cov.layer[0]); } catch (e) { /* ignore */ }
+    // 9 x 9 grid (110 m apart) for the hole / drop-off finder, same as NSW
+    const n = META.n, step = META.step, mid = (n - 1) / 2, kLon = 111320 * Math.cos(l.lat * Math.PI / 180), gd = [];
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) { const v = auElev(cov, l.lat + (i - mid) * step / 111320, l.lon + (j - mid) * step / kLon); gd.push(v == null || v === undefined ? null : Math.round(v * 10) / 10); }
+    const g = { lat: l.lat, lon: l.lon, n, step, d: gd };
+    // depth image, same size, colours and contours as NSW
+    const W = 640, h = HALF / Math.cos(l.lat * Math.PI / 180), [cx, cy] = merc(l.lat, l.lon);
+    const depths = new Float32Array(W * W).fill(NaN);
+    for (let y = 0; y < W; y++) for (let x = 0; x < W; x++) {
+      const [la, lo] = unmerc(cx - h + (x + 0.5) / W * 2 * h, cy + h - (y + 0.5) / W * 2 * h), v = auElev(cov, la, lo);
+      if (v != null && v !== undefined && v < 0) depths[y * W + x] = -v;   // land stays clear
+    }
+    const c = document.createElement('canvas'); c.width = W; c.height = W;
+    const ctx = c.getContext('2d'), px = ctx.createImageData(W, W);
+    paint(px.data, depths, W, cov.layer[1] >= 20 ? 0 : 2);
+    ctx.putImageData(px, 0, 0);
+    const [la0, lo0] = unmerc(cx - h, cy - h), [la1, lo1] = unmerc(cx + h, cy + h);
+    const s = { url: c.toDataURL('image/png'), bounds: [[la0, lo0], [la1, lo1]],
+      depthAt(la, lo) { const v = auElev(cov, la, lo); return v === undefined ? undefined : v == null || v >= 0 ? null : -v; } };
+    return (auCache[key] = { g, s, layer: cov.layer });
+  }
+  // Exact reading from the survey at one point (used when you tap the map).
+  async function auIdentify(layer, lat, lon) {
+    const e = 0.0005, name = encodeURIComponent('ausseabed:' + layer[0]);
+    const r = await fetch(`${AUS}?service=WMS&version=1.1.1&request=GetFeatureInfo&layers=${name}&query_layers=${name}&srs=EPSG:4326&bbox=${lon - e},${lat - e},${lon + e},${lat + e}&width=11&height=11&x=5&y=5&info_format=application/json`);
+    const j = await r.json(), p = j.features && j.features[0] && j.features[0].properties;
+    const v = p ? Object.values(p).find(x => typeof x === 'number') : null;
+    return v == null || !isFinite(v) || v < -12000 ? null : v;
+  }
+  const surveyName = layer => layer[0].replace(/_(HS|OV)$/, '').replace(/__/g, ' – ').replace(/_/g, ' ').replace(/(\d) (\d)m/, '$1.$2m').replace(/\s+/g, ' ').trim();
 
   // Depth anywhere near the spot: from the image when there is one, otherwise smoothed between the grid readings.
   function depthFn(l, g, s) {
@@ -340,6 +458,7 @@ window.FISH = window.FISH || {};
     </svg>`;
   }
 
+  let curAu = null;
   let mini = null, miniFor = null, miniEl = null, markersLayer = null, overlays = [], depthLayer = null, staticInfo = null, cur = { tide: null, when: '' };
   const waterTxt = (v) => {
     if (v == null) return 'No depth here (land, or outside the survey)';
@@ -357,7 +476,7 @@ window.FISH = window.FISH || {};
     const reefStyle = [{ id: 1, source: { type: 'mapLayer', mapLayerId: 1 }, definitionExpression: "REEF='Reef'",
       drawingInfo: { renderer: { type: 'simple', symbol: { type: 'esriSFS', style: 'esriSFSSolid', color: [8, 36, 58, 255],
         outline: { type: 'esriSLS', style: 'esriSLSSolid', color: [230, 245, 255, 255], width: 0.7 } } } } }];
-    overlays = [viewOverlay(mini, REEF, 1, '&dynamicLayers=' + encodeURIComponent(JSON.stringify(reefStyle)), 0.3, 'Reefs: NSW seabed reef map')];
+    overlays = !nswCovered(l) ? [] : [viewOverlay(mini, REEF, 1, '&dynamicLayers=' + encodeURIComponent(JSON.stringify(reefStyle)), 0.3, 'Reefs: NSW seabed reef map')];
     markersLayer = L.layerGroup().addTo(mini);
     L.circleMarker([l.lat, l.lon], { radius: 7, color: '#fff', weight: 3, fillColor: '#0b0b0b', fillOpacity: 1 }).addTo(mini).bindTooltip(l.name);
     depthLayer = null; staticInfo = null;
@@ -366,7 +485,7 @@ window.FISH = window.FISH || {};
       const quick = staticInfo ? staticInfo.depthAt(e.latlng.lat, e.latlng.lng) : undefined;
       pop.setContent(quick !== undefined ? waterTxt(quick) + '<br><small class="pop-note">checking the exact survey…</small>' : 'Checking depth…');
       try {
-        const v = await identify(e.latlng.lat, e.latlng.lng);
+        const v = curAu ? await auIdentify(curAu, e.latlng.lat, e.latlng.lng) : await identify(e.latlng.lat, e.latlng.lng);
         if (v == null && quick != null) { pop.setContent(waterTxt(quick)); return; }
         pop.setContent(waterTxt(v == null ? null : Math.max(0, -v)) + (v == null ? '' : '<br><small class="pop-note">✓ exact survey reading</small>'));
       } catch (err) { pop.setContent(quick !== undefined ? waterTxt(quick) : 'Could not get the depth – check your connection.'); }
@@ -414,7 +533,7 @@ window.FISH = window.FISH || {};
         ${res.deepestAt ? `<li><span class="hole-pin small deep">▼</span><span><b>Deepest nearby – ${w(res.deepest)} m</b> <span class="muted">${res.deepestAt.dir}${res.holes.length ? '' : ' · the bottom keeps sloping away, so it may get deeper further out'}</span></span></li>` : ''}
       </ul>
       <p class="muted small">Searched about ${Math.round(g.step * (g.n - 1) / 2)} m around the spot.${cur.tide != null ? ` Depths include the tide at ${cur.when}.` : ''}
-        ${beach ? '<br>⚠️ Beach gutters and sandbars move with every swell – this survey is from 2018, so use it as a guide and read the water on the day.' : ''}</p>`;
+        ${beach ? '<br>⚠️ Beach gutters and sandbars move with every swell – surveys are a few years old, so use them as a guide and read the water on the day.' : ''}</p>`;
   }
 
   function statsHtml(st) {
@@ -434,6 +553,8 @@ window.FISH = window.FISH || {};
     setTimeout(() => { mini.invalidateSize(); overlays.forEach(u => u()); }, 0);
     const tideEl = $('#depth-tide');
     if (tideEl) tideEl.innerHTML = cur.tide == null ? 'Depths at mean sea level' : `🌊 Tide ${cur.tide >= 0 ? '+' : '−'}${Math.abs(cur.tide).toFixed(1)} m at ${cur.when} – depths below include it`;
+    if (!nswCovered(l)) return mountAU(l);
+    curAu = null;
     let g = storedGrid(l);
     const sP = addDepthLayer(l, g && g !== 'none' && GRIDS[l.id] ? g : null);
     if (g === 'none') {
@@ -452,32 +573,65 @@ window.FISH = window.FISH || {};
     $('#depth-list').innerHTML = listHtml(l, res, g);
     const s = await sP;
     if (F.ui.state.selected !== l.id || !$('#depth-stats')) return;
+    finish(l, g, s, res);
+  }
+  function finish(l, g, s, res) {
     const dAt = depthFn(l, g, s), prof = profile(l, g, dAt), st = stats(l, dAt, res, prof);
     $('#depth-stats').innerHTML = statsHtml(st);
     const pe = $('#depth-profile');
     if (prof) pe.innerHTML = `<h4 class="depth-h">Side view – from the water's edge looking out ${prof.dir}</h4>${profileSvg(prof, cur.tide)}`;
     else pe.hidden = true;
   }
+  // Every other state: the finest national survey that covers the spot, drawn exactly like NSW.
+  async function mountAU(l) {
+    const listEl = $('#depth-list');
+    listEl.innerHTML = '<p class="muted small">🔍 Reading the seabed survey around this spot…</p>';
+    let au;
+    try { au = await auDepth(l); } catch (e) { au = undefined; }
+    if (F.ui.state.selected !== l.id || !$('#depth-list')) return;
+    if (au === undefined) { $('#depth-list').innerHTML = '<p class="muted small">Could not reach the depth survey – check your connection.</p>'; return; }
+    if (!au) {
+      $('#depth-list').innerHTML = '<p class="muted small">The detailed seabed surveys don\'t reach this exact spot yet (they mostly cover reefs, shipping channels and the open coast). Pan the map and tap the water to check depths nearby.</p>';
+      $('#depth-stats').hidden = true; $('#depth-profile').hidden = true;
+      return;
+    }
+    curAu = au.layer;
+    if (!depthLayer) {
+      staticInfo = au.s;
+      depthLayer = L.imageOverlay(au.s.url, au.s.bounds, { opacity: 1, attribution: 'Depth: Geoscience Australia / AusSeabed' }).addTo(mini);
+      mini.fitBounds(L.latLngBounds(au.s.bounds).pad(-0.12));
+      mini.setMaxBounds(L.latLngBounds(au.s.bounds).pad(0.15));
+    }
+    const src = $('#depth-src');
+    if (src) src.innerHTML = `Source: ${surveyName(au.layer)} (${au.layer[1]} m grid) from Geoscience Australia's AusSeabed warehouse. Survey depths are measured from about mean sea level or the lowest tide, depending on the survey. Tide heights are a forecast. A fishing guide only – <b>not for navigation</b>.`;
+    const intro = $('#depth-intro');
+    if (intro) intro.textContent = `How deep it really is around this spot – from the national seabed survey (${au.layer[1]} m detail).`;
+    const res = analyse(au.g);
+    addMarkers(res);
+    $('#depth-list').innerHTML = listHtml(l, res, au.g);
+    finish(l, au.g, au.s, res);
+  }
 
   function sectionHtml(l) {
     if (!l || l.water !== 'salt') return '';
     const badge = `<span class="pro-badge" title="This will be part of CastCall Pro later">⭐ Pro${PRO_FREE ? ' – free for now' : ''}</span>`;
-    if (!covered(l)) return `<section class="depth-card"><div class="depth-top"><h3>🌊 Depth &amp; structure ${badge}</h3></div><p class="muted small" style="padding:0 16px 14px">Detailed depth maps cover NSW for now. ${F.STATES[l.state] ? F.STATES[l.state].name : 'This state'} is coming later.</p></section>`;
+    if (!covered(l)) return `<section class="depth-card"><div class="depth-top"><h3>🌊 Depth &amp; structure ${badge}</h3></div><p class="muted small" style="padding:12px 16px 14px;margin:0">No detailed seabed survey covers this spot yet – the national surveys mostly cover reefs, shipping channels and the open coast. We'll add it as new surveys are released.</p></section>`;
+    const nsw = nswCovered(l);
     const legend = `<span class="grad" style="background:linear-gradient(90deg,${BANDS.map(b => `rgb(${b.c.join(',')})`).join(',')})"></span><span class="glabels">${BANDS.map(b => `<i>${b.label}</i>`).join('')}</span>`;
     return `<section class="depth-card">
       <div class="depth-top">
         <h3>🌊 Depth &amp; structure ${badge}</h3>
-        <p>How deep it really is around this spot – from the NSW Government's laser and sonar seabed survey.</p>
+        <p id="depth-intro">How deep it really is around this spot – from ${nsw ? "the NSW Government's laser and sonar seabed survey" : 'the national seabed survey'}.</p>
         <div class="depth-tide" id="depth-tide"></div>
       </div>
       <div class="depth-body">
         <div class="depth-stats" id="depth-stats"><div class="dstat skel"></div><div class="dstat skel"></div><div class="dstat skel"></div></div>
         <div id="depth-slot" class="depth-map"></div>
-        <div class="depth-legend"><span class="gwrap">${legend}</span><span class="gm">m</span><span class="reef-key"></span><span>Reef</span><span class="you-key"></span><span>The spot</span></div>
+        <div class="depth-legend"><span class="gwrap">${legend}</span><span class="gm">m</span>${nsw ? '<span class="reef-key"></span><span>Reef</span>' : ''}<span class="you-key"></span><span>The spot</span></div>
         <p class="caption">👆 Tap anywhere on the water for the exact depth. Scroll (or pinch on a phone) to zoom. Faint white lines mark 2, 5, 10, 20 and 30 m. Numbers mark deep holes, ↘ the steepest drop-off and ▼ the deepest point.</p>
         <div class="depth-profile" id="depth-profile"></div>
         <div id="depth-list"></div>
-        <p class="muted small">Source: NSW Government marine LiDAR (2018) and multibeam surveys, plus the NSW seabed reef map. Tide heights are a forecast. A fishing guide only – <b>not for navigation</b>.</p>
+        <p class="muted small" id="depth-src">${nsw ? 'Source: NSW Government marine LiDAR (2018) and multibeam surveys, plus the NSW seabed reef map. Tide heights are a forecast. A fishing guide only – <b>not for navigation</b>.' : 'Source: Geoscience Australia / AusSeabed national seabed surveys.'}</p>
       </div>
     </section>`;
   }

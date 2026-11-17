@@ -659,3 +659,8 @@ select { border-radius: 12px; padding: 8px 12px; }
 .depth-legend .glabels { display: grid; grid-template-columns: repeat(9, 1fr); font-size: 9.5px; text-align: center; color: var(--muted); }
 .depth-legend .glabels i { font-style: normal; white-space: nowrap; }
 .depth-legend .gm { font-size: 10.5px; color: var(--muted); align-self: flex-end; margin-right: 4px; }
+
+/* Phones: 16px text in every box so the browser never auto-zooms when you tap to type (pinch-zoom still works) */
+@media (max-width: 820px), (pointer: coarse) {
+  input, select, textarea, .search-box input[type=search], .search-box input[type=text], .form-grid input, .form-grid select, .form-grid textarea { font-size: 16px !important; }
+}
